@@ -4,7 +4,7 @@ import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.model.RideRequest;
 import com.handler.ride_request.model.Rider;
-import com.handler.ride_request.rabbitmq.service.impl.NotificationServiceImpl;
+import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.UserRepository;
 import com.handler.ride_request.scheduler.RiderSearchScheduler;
@@ -28,7 +28,7 @@ class ProcessRequestServiceImplTest {
     ProcessRequestServiceImpl service;
     UserRepository userRepositoryMock;
     RideRequestRepository rideRequestRepositoryMock;
-    NotificationServiceImpl notificationServiceMock;
+    NotificationService notificationServiceMock;
     RiderSearchScheduler scheduleRidersSearchMock;
     RidersSearchService ridersSearchServiceMock;
 
@@ -47,7 +47,7 @@ class ProcessRequestServiceImplTest {
     void setUp(){
         userRepositoryMock = mock(UserRepository.class);
         rideRequestRepositoryMock = mock(RideRequestRepository.class);
-        notificationServiceMock = mock(NotificationServiceImpl.class);
+        notificationServiceMock = mock(NotificationService.class);
         ridersSearchServiceMock = mock(RidersSearchService.class);
         scheduleRidersSearchMock = mock(RiderSearchScheduler.class);
 
@@ -69,7 +69,7 @@ class ProcessRequestServiceImplTest {
         List<Rider> riders = ProcessRequestServiceTestHelper.getListOfRiders();
 
         when(userRepositoryMock.findByIdentifier(rideRequest.userIdentifier())).thenReturn(Optional.of(userEntity));
-        when(rideRequestRepositoryMock.save(rideRequestEntityCaptor1.capture())).thenReturn(rideRequestEntity);
+        when(rideRequestRepositoryMock.save(any(RideRequestEntity.class))).thenReturn(rideRequestEntity);
         when(ridersSearchServiceMock.findNearestVehicles(rideRequestEntity.getLocation())).thenReturn(riders);
         doNothing().when(notificationServiceMock).sendRabbitMqNotification(riderDataRequestCaptor.capture(), rideRequestEntityCaptor2.capture());
         doNothing().when(scheduleRidersSearchMock).scheduleRidersSearch(idCaptor.capture());
@@ -79,6 +79,6 @@ class ProcessRequestServiceImplTest {
         Assertions.assertEquals(riders, riderDataRequestCaptor.getValue());
         Assertions.assertEquals(rideRequestEntity, rideRequestEntityCaptor2.getValue());
         Assertions.assertEquals(rideRequestEntity.getId(), idCaptor.getValue());
-
+        verify(rideRequestRepositoryMock, atLeastOnce()).save(any(RideRequestEntity.class));
     }
 }

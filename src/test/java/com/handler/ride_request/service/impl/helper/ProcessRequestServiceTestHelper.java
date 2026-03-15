@@ -5,7 +5,7 @@ import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.model.Location;
 import com.handler.ride_request.model.RideRequest;
 import com.handler.ride_request.model.Rider;
-import com.handler.ride_request.tools.StatusEnum;
+import com.handler.ride_request.enums.StatusEnum;
 import org.springframework.data.geo.Point;
 
 import java.util.List;

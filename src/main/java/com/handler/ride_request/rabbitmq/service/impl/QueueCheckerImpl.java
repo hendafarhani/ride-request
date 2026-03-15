@@ -19,6 +19,6 @@ public class QueueCheckerImpl implements QueueChecker {
     @Override
     public boolean doesQueueExist(String queueName) {
             // Check if the queue exists
-            return Optional.of(rabbitAdmin.getQueueProperties(queueName)).isPresent();
+            return Optional.ofNullable(rabbitAdmin.getQueueProperties(queueName)).isPresent();
     }
 }

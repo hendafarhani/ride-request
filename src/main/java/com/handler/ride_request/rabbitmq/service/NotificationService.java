@@ -9,4 +9,6 @@ public interface NotificationService {
 
 
     void sendRabbitMqNotification(List<Rider> riders, RideRequestEntity rideRequestEntity);
+
+    void notifyRideAccepted(RideRequestEntity rideRequestEntity, String acceptedRiderIdentifier);
 }

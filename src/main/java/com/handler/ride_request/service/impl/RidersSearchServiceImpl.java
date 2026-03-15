@@ -33,6 +33,7 @@ public class RidersSearchServiceImpl implements RidersSearchService {
 
         if(isResponseEmpty(response)) return List.of();
 
+        assert response != null;
         return response.getContent().stream()
                 .map(this::getRider)
                 .collect(Collectors.toList());
