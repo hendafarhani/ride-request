@@ -14,11 +14,12 @@ import java.util.Set;
 @Setter
 @Entity
 @Table(name = "RIDE_REQUEST")
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 public class RideRequestEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne
