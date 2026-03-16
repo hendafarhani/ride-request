@@ -6,7 +6,7 @@ import io.netty.util.internal.StringUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.geo.*;
 import org.springframework.data.redis.connection.RedisGeoCommands;
-import org.springframework.data.redis.core.GeoOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 @Service
 public class RidersSearchServiceImpl implements RidersSearchService {
 
-    private final GeoOperations<String, String> geoOperations;
+    private final StringRedisTemplate stringRedisTemplate;
 
     public static final String VEHICLE_LOCATION = "vehicle_location";
     public static final int MAX_NUMBER_RIDERS = 5;
@@ -29,7 +29,8 @@ public class RidersSearchServiceImpl implements RidersSearchService {
         RedisGeoCommands.GeoRadiusCommandArgs args = getGeoRaduisCommandArgs();
         Circle circle = getCircle(location);
 
-        GeoResults<RedisGeoCommands.GeoLocation<String>> response = geoOperations.radius(VEHICLE_LOCATION, circle, args);
+        GeoResults<RedisGeoCommands.GeoLocation<String>> response = stringRedisTemplate.opsForGeo()
+                .radius(VEHICLE_LOCATION, circle, args);
 
         if(isResponseEmpty(response)) return List.of();
 
@@ -54,7 +55,7 @@ public class RidersSearchServiceImpl implements RidersSearchService {
 
     private Rider getRider(GeoResult<RedisGeoCommands.GeoLocation<String>> data){
         String identifier = data.getContent().getName();
-        String hash = Optional.ofNullable(geoOperations.hash(VEHICLE_LOCATION, identifier))
+        String hash = Optional.ofNullable(stringRedisTemplate.opsForGeo().hash(VEHICLE_LOCATION, identifier))
                 .stream()
                 .flatMap(List::stream)
                 .findFirst()
