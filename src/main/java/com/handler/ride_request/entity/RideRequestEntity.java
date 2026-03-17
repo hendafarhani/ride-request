@@ -6,8 +6,8 @@ import lombok.*;
 import org.springframework.data.geo.Point;
 
 import java.time.OffsetDateTime;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 @Builder
 @Getter
@@ -41,8 +41,6 @@ public class RideRequestEntity {
     private OffsetDateTime acceptedAt;
 
     @Builder.Default
-    @ElementCollection
-    @CollectionTable(name = "ride_request_candidates", joinColumns = @JoinColumn(name = "ride_request_id"))
-    @Column(name = "rider_identifier")
-    private Set<String> candidateRiderIdentifiers = new HashSet<>();
+    @OneToMany(mappedBy = "rideRequest", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RideRequestDriverAttemptEntity> driverAttempts = new ArrayList<>();
 }
