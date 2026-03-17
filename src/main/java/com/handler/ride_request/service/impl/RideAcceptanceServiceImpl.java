@@ -1,8 +1,10 @@
 package com.handler.ride_request.service.impl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
+import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
+import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.service.RideAcceptanceService;
 import com.handler.ride_request.enums.StatusEnum;
 import jakarta.persistence.EntityNotFoundException;
@@ -20,7 +22,9 @@ import java.time.OffsetDateTime;
 public class RideAcceptanceServiceImpl implements RideAcceptanceService {
 
     private final RideRequestRepository rideRequestRepository;
+    private final RiderRepository riderRepository;
     private final NotificationService notificationService;
+    private final RideRequestDriverAttemptService attemptService;
 
     @Override
     @Transactional
@@ -34,17 +38,23 @@ public class RideAcceptanceServiceImpl implements RideAcceptanceService {
 
         RideRequestEntity rideRequest = rideRequestRepository.findByIdentifier(rideRequestIdentifier)
                 .orElseThrow(() -> new EntityNotFoundException("Ride request not found for identifier " + rideRequestIdentifier));
+        RiderEntity rider = riderRepository.findByIdentifier(riderIdentifier)
+                .orElseThrow(() -> new EntityNotFoundException("Rider not found for identifier " + riderIdentifier));
 
         if (!StatusEnum.PENDING.equals(rideRequest.getStatus())) {
             throw new IllegalStateException("Ride request " + rideRequestIdentifier + " is not pending");
         }
 
+        OffsetDateTime acceptedAt = OffsetDateTime.now();
+        attemptService.markAccepted(rideRequest.getId(), rider.getIdentifier(), acceptedAt);
+        attemptService.markOtherOpenAttemptsAsCanceled(rideRequest.getId(), rider.getIdentifier(), acceptedAt);
+
         rideRequest.setStatus(StatusEnum.ACCEPTED);
-        rideRequest.setAcceptedRiderIdentifier(riderIdentifier);
-        rideRequest.setAcceptedAt(OffsetDateTime.now());
+        rideRequest.setAcceptedRiderIdentifier(rider.getIdentifier());
+        rideRequest.setAcceptedAt(acceptedAt);
         rideRequestRepository.save(rideRequest);
 
-        log.info("Ride request {} accepted by rider {}", rideRequestIdentifier, riderIdentifier);
-        notificationService.notifyRideAccepted(rideRequest, riderIdentifier);
+        log.info("Ride request {} accepted by rider {}", rideRequestIdentifier, rider.getIdentifier());
+        notificationService.notifyRideAccepted(rideRequest, rider.getIdentifier());
     }
 }
