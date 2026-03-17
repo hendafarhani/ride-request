@@ -1,6 +1,7 @@
 package com.handler.ride_request.rabbitmq.service.impl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
+import com.handler.ride_request.enums.AttemptStatus;
 import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.rabbitmq.mapper.RideMapper;
 import com.handler.ride_request.rabbitmq.model.RideNotification;
@@ -8,6 +9,7 @@ import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.rabbitmq.service.QueueChecker;
 import com.handler.ride_request.rabbitmq.service.RabbitMQUserService;
 import com.handler.ride_request.enums.StatusEnum;
+import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.DirectExchange;
@@ -16,8 +18,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -28,6 +28,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final DirectExchange userExchange;
     private final QueueChecker queueChecker;
     private final RabbitMQUserService rabbitMQUserService;
+    private final RideRequestDriverAttemptRepository attemptRepository;
     private static final String QUEUE_USER = "queue.user.";
 
     @Override
@@ -65,10 +66,11 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private void notifyOtherRiders(RideRequestEntity rideRequestEntity, String acceptedRiderIdentifier) {
-        Set<String> candidates = Objects.requireNonNullElse(rideRequestEntity.getCandidateRiderIdentifiers(), Set.of());
-        List<String> ridersToNotify = candidates.stream()
+        List<String> ridersToNotify = attemptRepository.findByRideRequestIdAndStatus(rideRequestEntity.getId(), AttemptStatus.CANCELED).stream()
+                .map(attempt -> attempt.getRider().getIdentifier())
                 .filter(candidate -> !Objects.equals(candidate, acceptedRiderIdentifier))
-                .collect(Collectors.toList());
+                .distinct()
+                .toList();
 
         if (ridersToNotify.isEmpty()) {
             log.info("No additional riders to notify for ride {}", rideRequestEntity.getIdentifier());
