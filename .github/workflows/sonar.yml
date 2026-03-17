@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows: ["Build Ride Request"]
     types: [completed]
+  workflow_dispatch:
 
 jobs:
   sonar:
