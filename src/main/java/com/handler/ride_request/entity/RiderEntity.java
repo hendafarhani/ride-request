@@ -8,6 +8,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.*;
 
+import java.time.LocalDate;
+
 @Builder
 @Getter
 @Setter
@@ -26,5 +28,11 @@ public class RiderEntity {
 
     @Column(name = "identifier", unique = true)
     private String identifier;
+
+    @Column(name = "license_number", unique = true)
+    private String licenseNumber;
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
 
 }
