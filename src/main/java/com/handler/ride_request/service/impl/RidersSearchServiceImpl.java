@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
@@ -24,7 +25,7 @@ public class RidersSearchServiceImpl implements RidersSearchService {
     public static final int MAX_NUMBER_RIDERS = 5;
     public static final int DISTANCE = 10;
 
-    public List<Rider> findNearestVehicles(Point location) {
+    public List<Rider> findNearestVehicles(Point location, Set<String> excludedIdentifiers) {
 
         RedisGeoCommands.GeoRadiusCommandArgs args = getGeoRaduisCommandArgs();
         Circle circle = getCircle(location);
@@ -36,7 +37,9 @@ public class RidersSearchServiceImpl implements RidersSearchService {
 
         assert response != null;
         return response.getContent().stream()
+                .filter(data -> isNotExcluded(data, excludedIdentifiers))
                 .map(this::getRider)
+                .limit(MAX_NUMBER_RIDERS)
                 .collect(Collectors.toList());
     }
 
@@ -45,7 +48,7 @@ public class RidersSearchServiceImpl implements RidersSearchService {
                 .GeoRadiusCommandArgs.newGeoRadiusArgs()
                 .includeCoordinates()
                 .includeDistance()
-                .sortAscending().limit(MAX_NUMBER_RIDERS);
+                .sortAscending();
     }
 
     private Circle getCircle(Point location){
@@ -71,5 +74,12 @@ public class RidersSearchServiceImpl implements RidersSearchService {
 
     private boolean isResponseEmpty(GeoResults<RedisGeoCommands.GeoLocation<String>> response){
         return Objects.isNull(response) || response.getContent().isEmpty();
+    }
+
+    private boolean isNotExcluded(GeoResult<RedisGeoCommands.GeoLocation<String>> data, Set<String> excludedIdentifiers) {
+        if (Objects.isNull(excludedIdentifiers) || excludedIdentifiers.isEmpty()) {
+            return true;
+        }
+        return !excludedIdentifiers.contains(data.getContent().getName());
     }
 }

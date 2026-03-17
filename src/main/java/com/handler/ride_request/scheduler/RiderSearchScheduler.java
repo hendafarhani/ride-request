@@ -1,15 +1,19 @@
 package com.handler.ride_request.scheduler;
 
 import com.handler.ride_request.entity.RideRequestEntity;
+import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.service.RidersSearchService;
 import com.handler.ride_request.enums.StatusEnum;
+import com.handler.ride_request.service.impl.RideRequestDriverAttemptService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -28,6 +32,7 @@ public class RiderSearchScheduler {
     private final RideRequestRepository rideRequestRepository;
     private final NotificationService notificationService;
     private final RidersSearchService ridersSearchService;
+    private final RideRequestDriverAttemptService attemptService;
 
 
     public void scheduleRidersSearch(Long rideRequestId) {
@@ -56,14 +61,24 @@ public class RiderSearchScheduler {
 
         if (isRetryTimesGreaterThanMaxRetries(executionCount)) {
             log.info("No confirmation received. Max retry times is exceeded.");
+            attemptService.markOutstandingAttemptsAsTimedOut(request.getId());
             updateRideRequestCaseOfError(request, executionCount.get());
             cancelFuture(future);
             return;
         }
 
+        attemptService.markOutstandingAttemptsAsTimedOut(request.getId());
+        Set<String> attemptedRiderIdentifiers = attemptService.getAttemptedRiderIdentifiers(request.getId());
+        List<Rider> nextRiders = ridersSearchService.findNearestVehicles(request.getLocation(), attemptedRiderIdentifiers);
+        List<Rider> persistedCandidates = attemptService.createAttemptsForRound(
+                request,
+                nextRiders,
+                attemptService.getNextNotificationRound(request.getId())
+        );
+
         log.info("No confirmation received within {} minutes. Relaunching search for ride {}.",
                 AWAITING_TIME_MIN, request.getIdentifier());
-        notificationService.sendRabbitMqNotification(ridersSearchService.findNearestVehicles(request.getLocation()), request);
+        notificationService.sendRabbitMqNotification(persistedCandidates, request);
         executionCount.incrementAndGet();
     }
 
