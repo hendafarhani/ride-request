@@ -31,6 +31,7 @@ class ProcessRequestServiceImplTest {
     NotificationService notificationServiceMock;
     RiderSearchScheduler scheduleRidersSearchMock;
     RidersSearchService ridersSearchServiceMock;
+    RideRequestDriverAttemptService attemptServiceMock;
 
     @Captor
     ArgumentCaptor<RideRequestEntity> rideRequestEntityCaptor1;
@@ -50,12 +51,14 @@ class ProcessRequestServiceImplTest {
         notificationServiceMock = mock(NotificationService.class);
         ridersSearchServiceMock = mock(RidersSearchService.class);
         scheduleRidersSearchMock = mock(RiderSearchScheduler.class);
+        attemptServiceMock = mock(RideRequestDriverAttemptService.class);
 
         service = new ProcessRequestServiceImpl(userRepositoryMock,
         rideRequestRepositoryMock,
         notificationServiceMock,
         ridersSearchServiceMock,
-        scheduleRidersSearchMock);
+        scheduleRidersSearchMock,
+        attemptServiceMock);
 
         MockitoAnnotations.openMocks(this); // Initialize mocks and captors
     }
@@ -70,7 +73,8 @@ class ProcessRequestServiceImplTest {
 
         when(userRepositoryMock.findByIdentifier(rideRequest.userIdentifier())).thenReturn(Optional.of(userEntity));
         when(rideRequestRepositoryMock.save(any(RideRequestEntity.class))).thenReturn(rideRequestEntity);
-        when(ridersSearchServiceMock.findNearestVehicles(rideRequestEntity.getLocation())).thenReturn(riders);
+        when(ridersSearchServiceMock.findNearestVehicles(eq(rideRequestEntity.getLocation()), anySet())).thenReturn(riders);
+        when(attemptServiceMock.createAttemptsForRound(rideRequestEntity, riders, 1)).thenReturn(riders);
         doNothing().when(notificationServiceMock).sendRabbitMqNotification(riderDataRequestCaptor.capture(), rideRequestEntityCaptor2.capture());
         doNothing().when(scheduleRidersSearchMock).scheduleRidersSearch(idCaptor.capture());
 
