@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -31,6 +30,7 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
     private final NotificationService notificationService;
     private final RidersSearchService ridersSearchService;
     private final RiderSearchScheduler scheduleRidersSearch;
+    private final RideRequestDriverAttemptService attemptService;
 
     @Override
     public void processRideRequest(RideRequest rideRequest) {
@@ -47,14 +47,14 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
         }
 
         // Search for the 5 nearest riders to the requesters => By reading from database Redis.
-        List<Rider> riderData = ridersSearchService.findNearestVehicles(rideRequestEntity.getLocation());
+        List<Rider> riderData = ridersSearchService.findNearestVehicles(rideRequestEntity.getLocation(), Set.of());
         log.debug("Found {} nearby riders for request {}", riderData.size(), rideRequestEntity.getId());
 
-        persistCandidateRiders(rideRequestEntity, riderData);
+        List<Rider> persistedCandidates = attemptService.createAttemptsForRound(rideRequestEntity, riderData, 1);
 
         //Once the 5 nearest riders are found => send them a notification via RabbitMq
         //send RabbitMq requests where the key = rider identifier
-        notificationService.sendRabbitMqNotification(riderData, rideRequestEntity);
+        notificationService.sendRabbitMqNotification(persistedCandidates, rideRequestEntity);
         log.info("Notifications dispatched for ride request {}", rideRequestEntity.getId());
 
         scheduleRidersSearch.scheduleRidersSearch(rideRequestEntity.getId());
@@ -85,24 +85,4 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
     private boolean isRideRequestEntityEmpty(RideRequestEntity rideRequestEntity){
         return Objects.isNull(rideRequestEntity);
     }
-
-    private void persistCandidateRiders(RideRequestEntity rideRequestEntity, List<Rider> riderData) {
-        if (Objects.isNull(rideRequestEntity)) {
-            return;
-        }
-
-        Set<String> candidateIdentifiers = riderData.stream()
-                .map(Rider::getIdentifier)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-        if (Objects.isNull(rideRequestEntity.getCandidateRiderIdentifiers())) {
-            rideRequestEntity.setCandidateRiderIdentifiers(candidateIdentifiers);
-        } else {
-            rideRequestEntity.getCandidateRiderIdentifiers().clear();
-            rideRequestEntity.getCandidateRiderIdentifiers().addAll(candidateIdentifiers);
-        }
-        rideRequestRepository.save(rideRequestEntity);
-    }
-
 }
