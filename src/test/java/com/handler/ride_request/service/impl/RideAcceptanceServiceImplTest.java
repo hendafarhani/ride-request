@@ -1,8 +1,10 @@
 package com.handler.ride_request.service.impl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
+import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
+import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.enums.StatusEnum;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,11 +29,17 @@ class RideAcceptanceServiceImplTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private RiderRepository riderRepository;
+
+    @Mock
+    private RideRequestDriverAttemptService attemptService;
+
     private RideAcceptanceServiceImpl rideAcceptanceService;
 
     @BeforeEach
     void setUp() {
-        rideAcceptanceService = new RideAcceptanceServiceImpl(rideRequestRepository, notificationService);
+        rideAcceptanceService = new RideAcceptanceServiceImpl(rideRequestRepository, riderRepository, notificationService, attemptService);
     }
 
     @Test
@@ -40,7 +48,11 @@ class RideAcceptanceServiceImplTest {
                 .identifier("ride-123")
                 .status(StatusEnum.PENDING)
                 .build();
+        RiderEntity riderEntity = RiderEntity.builder()
+                .identifier("rider-42")
+                .build();
         when(rideRequestRepository.findByIdentifier("ride-123")).thenReturn(Optional.of(entity));
+        when(riderRepository.findByIdentifier("rider-42")).thenReturn(Optional.of(riderEntity));
         when(rideRequestRepository.save(any(RideRequestEntity.class))).thenReturn(entity);
 
         rideAcceptanceService.acceptRide("ride-123", "rider-42");
@@ -59,6 +71,7 @@ class RideAcceptanceServiceImplTest {
                 .acceptedAt(OffsetDateTime.now())
                 .build();
         when(rideRequestRepository.findByIdentifier("ride-123")).thenReturn(Optional.of(entity));
+        when(riderRepository.findByIdentifier("rider-42")).thenReturn(Optional.of(RiderEntity.builder().identifier("rider-42").build()));
 
         assertThrows(IllegalStateException.class, () -> rideAcceptanceService.acceptRide("ride-123", "rider-42"));
         verify(notificationService, never()).notifyRideAccepted(any(), any());
