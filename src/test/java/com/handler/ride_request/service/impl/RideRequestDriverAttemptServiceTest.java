@@ -66,6 +66,14 @@ class RideRequestDriverAttemptServiceTest {
     }
 
     @Test
+    void createAttemptsForRoundReturnsEmptyWhenRidersListIsNull() {
+        List<Rider> result = service.createAttemptsForRound(rideRequest, null, 1);
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(riderRepository, attemptRepository);
+    }
+
+    @Test
     void createAttemptsForRoundPersistsOnlyRidersThatExistInMySql() {
         Rider persistedCandidate = sampleRider("persisted-rider");
         Rider transientCandidate = sampleRider("transient-rider");
@@ -81,12 +89,48 @@ class RideRequestDriverAttemptServiceTest {
 
         List<RideRequestDriverAttemptEntity> savedAttempts = captureSavedAttempts();
         assertThat(savedAttempts).hasSize(1);
-        RideRequestDriverAttemptEntity attempt = savedAttempts.get(0);
+        RideRequestDriverAttemptEntity attempt = savedAttempts.getFirst();
         assertThat(attempt.getRideRequest()).isEqualTo(rideRequest);
         assertThat(attempt.getRider()).isEqualTo(riderEntity);
         assertThat(attempt.getNotificationRound()).isEqualTo(2);
         assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.NOTIFIED);
         assertThat(attempt.getNotifiedAt()).isNotNull();
+    }
+
+    @Test
+    void createAttemptsForRoundPersistsAllRidersWhenEverybodyExists() {
+        Rider first = sampleRider("first");
+        Rider second = sampleRider("second");
+        RiderEntity firstEntity = riderEntity(1L, "first");
+        RiderEntity secondEntity = riderEntity(2L, "second");
+        when(riderRepository.findByIdentifierIn(Set.of("first", "second")))
+                .thenReturn(List.of(firstEntity, secondEntity));
+
+        List<Rider> result = service.createAttemptsForRound(rideRequest, List.of(first, second), 3);
+
+        assertThat(result).containsExactly(first, second);
+        List<RideRequestDriverAttemptEntity> savedAttempts = captureSavedAttempts();
+        assertThat(savedAttempts).hasSize(2);
+        OffsetDateTime notifiedAt = savedAttempts.getFirst().getNotifiedAt();
+        assertThat(notifiedAt).isNotNull();
+        savedAttempts.forEach(attempt -> {
+            assertThat(attempt.getRideRequest()).isEqualTo(rideRequest);
+            assertThat(attempt.getNotificationRound()).isEqualTo(3);
+            assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.NOTIFIED);
+            assertThat(attempt.getNotifiedAt()).isEqualTo(notifiedAt);
+        });
+    }
+
+    @Test
+    void createAttemptsForRoundReturnsEmptyWhenNoRidersArePersisted() {
+        Rider lone = sampleRider("ghost");
+        when(riderRepository.findByIdentifierIn(Set.of("ghost"))).thenReturn(List.of());
+
+        List<Rider> result = service.createAttemptsForRound(rideRequest, List.of(lone), 1);
+
+        assertThat(result).isEmpty();
+        List<RideRequestDriverAttemptEntity> savedAttempts = captureSavedAttempts();
+        assertThat(savedAttempts).isEmpty();
     }
 
     @Test
@@ -226,4 +270,3 @@ class RideRequestDriverAttemptServiceTest {
         return StreamSupport.stream(iterable.spliterator(), false).collect(Collectors.toList());
     }
 }
-
