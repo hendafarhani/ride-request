@@ -12,8 +12,8 @@ import java.util.List;
 @Builder
 @Getter
 @Setter
-@Entity
 @Table(name = "RIDE_REQUEST")
+@Entity
 @AllArgsConstructor
 @NoArgsConstructor
 public class RideRequestEntity {

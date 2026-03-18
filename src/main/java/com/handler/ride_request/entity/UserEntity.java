@@ -12,7 +12,7 @@ import lombok.*;
 @Getter
 @Setter
 @Entity
-@Table(name = "USER")
+@Table(name = "USERS")
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserEntity {
