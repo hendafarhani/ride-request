@@ -8,8 +8,7 @@ import com.handler.ride_request.enums.StatusEnum;
 
 import java.math.BigDecimal;
 
-public class RideMapper {
-
+public abstract class RideMapper {
 
     public static RideNotification mapToRideNotification(Rider rider, RideRequestEntity rideRequestEntity, StatusEnum status){
         return mapToRideNotification(rider.getIdentifier(), rideRequestEntity, status);

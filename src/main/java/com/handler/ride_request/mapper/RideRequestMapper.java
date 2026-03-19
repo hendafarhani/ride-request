@@ -8,8 +8,7 @@ import org.springframework.data.geo.Point;
 
 import java.util.UUID;
 
-public class RideRequestMapper {
-
+public abstract class RideRequestMapper {
 
     public static RideRequestEntity mapToRideRequestEntity(UserEntity userEntity, RideRequest rideRequest, StatusEnum status){
         return RideRequestEntity.builder()
