@@ -59,6 +59,14 @@ class NotificationServiceImplTest {
     }
 
     @Test
+    void sendRabbitMqNotification_returnsWhenRiderListIsNull() {
+        // Guard clause should also skip work for an empty list.
+        notificationService.sendRabbitMqNotification(null, rideRequest);
+
+        verifyNoInteractions(queueChecker, rabbitMQUserService, rabbitTemplate);
+    }
+
+    @Test
     void sendRabbitMqNotification_returnsWhenRiderListIsEmpty() {
         // Guard clause should also skip work for an empty list.
         notificationService.sendRabbitMqNotification(List.of(), rideRequest);
