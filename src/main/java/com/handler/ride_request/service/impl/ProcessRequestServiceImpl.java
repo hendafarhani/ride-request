@@ -48,6 +48,11 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
 
         // Search for the 5 nearest riders to the requesters => By reading from database Redis.
         List<Rider> riderData = ridersSearchService.findNearestVehicles(rideRequestEntity.getLocation(), Set.of());
+        if (riderData == null || riderData.isEmpty()) {
+            log.warn("Skipping ride request processing because no nearby riders were found for request {}", rideRequestEntity.getId());
+            return;
+        }
+
         log.debug("Found {} nearby riders for request {}", riderData.size(), rideRequestEntity.getId());
 
         List<Rider> persistedCandidates = attemptService.createAttemptsForRound(rideRequestEntity, riderData, 1);
