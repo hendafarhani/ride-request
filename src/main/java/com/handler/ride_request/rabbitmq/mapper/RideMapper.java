@@ -10,6 +10,10 @@ import java.math.BigDecimal;
 
 public abstract class RideMapper {
 
+    private RideMapper(){
+        // Private constructor to prevent instantiation
+    }
+
     public static RideNotification mapToRideNotification(Rider rider, RideRequestEntity rideRequestEntity, StatusEnum status){
         return mapToRideNotification(rider.getIdentifier(), rideRequestEntity, status);
     }

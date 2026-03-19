@@ -8,7 +8,11 @@ import org.springframework.data.geo.Point;
 
 import java.util.UUID;
 
-public abstract class RideRequestMapper {
+public class RideRequestMapper {
+
+    private RideRequestMapper() {
+        // Private constructor to prevent instantiation
+    }
 
     public static RideRequestEntity mapToRideRequestEntity(UserEntity userEntity, RideRequest rideRequest, StatusEnum status){
         return RideRequestEntity.builder()
