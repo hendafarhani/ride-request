@@ -78,12 +78,12 @@ class RideRequestDriverAttemptServiceImplIntegrationTest {
         List<RideRequestDriverAttemptEntity> attempts = attemptRepository
                 .findByRideRequestIdOrderByNotificationRoundAscNotifiedAtAsc(rideRequest.getId());
 
-        assertThat(attempts).hasSize(2);
         assertThat(attempts)
                 .allSatisfy(attempt -> {
                     assertThat(attempt.getNotificationRound()).isEqualTo(2);
                     assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.NOTIFIED);
                     assertThat(attempt.getNotifiedAt()).isNotNull();
+                    assertThat(attempts).hasSize(2);
                     assertThat(Set.of(persistedOne.getId(), persistedTwo.getId()))
                             .contains(attempt.getRider().getId());
                 });

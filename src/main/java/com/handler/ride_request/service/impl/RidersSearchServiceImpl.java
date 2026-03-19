@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
@@ -39,7 +38,7 @@ public class RidersSearchServiceImpl implements RidersSearchService {
                 .filter(result -> isAllowed(result, excludedIdentifiers))
                 .map(this::mapToRider)
                 .limit(MAX_NUMBER_RIDERS)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private GeoResults<RedisGeoCommands.GeoLocation<String>> queryNearbyVehicles(Point location) {
