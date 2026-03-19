@@ -96,7 +96,7 @@ public class RideRequestDriverAttemptService {
                 .stream()
                 .filter(this::hasRider)
                 .filter(attempt -> !Objects.equals(attempt.getRider().getIdentifier(), acceptedRiderIdentifier))
-                .collect(Collectors.toList());
+                .toList();
 
         if (attemptsToCancel.isEmpty()) {
             return;
