@@ -21,8 +21,8 @@ import org.springframework.data.geo.Point;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -51,33 +51,29 @@ class ProcessRequestServiceImplTest {
     private ProcessRequestServiceImpl service;
 
     private RideRequest rideRequest;
-    private UserEntity userEntity;
+    private UserEntity user;
     private RideRequestEntity persistedRequest;
 
     @BeforeEach
     void setUp() {
         rideRequest = RideRequest.builder()
                 .userIdentifier("user-123")
-                .location(Location.builder().latitude(1.0).longitude(2.0).build())
+                .location(Location.builder().latitude(1).longitude(2).build())
                 .build();
 
-        userEntity = UserEntity.builder()
-                .id(5L)
-                .identifier("user-123")
-                .name("John Doe")
-                .build();
+        user = UserEntity.builder().id(10L).identifier("user-123").name("Jane").build();
 
         persistedRequest = RideRequestEntity.builder()
-                .id(42L)
-                .identifier("ride-42")
-                .user(userEntity)
+                .id(55L)
+                .identifier("ride-55")
+                .user(user)
                 .status(StatusEnum.PENDING)
-                .location(new Point(2.0, 1.0))
+                .location(new Point(2, 1))
                 .build();
     }
 
     @Test
-    void shouldReturnImmediatelyWhenRideRequestIsNull() {
+    void shouldReturnWhenRideRequestIsNull() {
         service.processRideRequest(null);
 
         verifyNoInteractions(userRepository, rideRequestRepository, ridersSearchService,
@@ -85,10 +81,11 @@ class ProcessRequestServiceImplTest {
     }
 
     @Test
-    void shouldNotProcessWhenUserIsUnknown() {
+    void shouldThrowWhenRideRequestCannotBePersisted() {
         when(userRepository.findByIdentifier("user-123")).thenReturn(Optional.empty());
 
-        service.processRideRequest(rideRequest);
+        assertThatThrownBy(() -> service.processRideRequest(rideRequest))
+                .isInstanceOf(IllegalStateException.class);
 
         verify(userRepository).findByIdentifier("user-123");
         verifyNoInteractions(rideRequestRepository, ridersSearchService,
@@ -96,34 +93,45 @@ class ProcessRequestServiceImplTest {
     }
 
     @Test
-    void shouldSkipProcessingWhenNoNearbyRidersAreFound() {
-        when(userRepository.findByIdentifier("user-123")).thenReturn(Optional.of(userEntity));
+    void shouldSkipWhenNoNearbyRidersFound() {
+        when(userRepository.findByIdentifier("user-123")).thenReturn(Optional.of(user));
         when(rideRequestRepository.save(any(RideRequestEntity.class))).thenReturn(persistedRequest);
-        when(ridersSearchService.findNearestVehicles(persistedRequest.getLocation(), Set.of()))
+        when(ridersSearchService.findNearestVehicles(persistedRequest.getLocation(), java.util.Collections.emptySet()))
                 .thenReturn(List.of());
 
         service.processRideRequest(rideRequest);
 
-        verify(ridersSearchService).findNearestVehicles(persistedRequest.getLocation(), Set.of());
+        verify(ridersSearchService).findNearestVehicles(persistedRequest.getLocation(), java.util.Collections.emptySet());
         verifyNoInteractions(attemptService, notificationService, riderSearchScheduler);
     }
 
     @Test
-    void shouldCreateAttemptsNotifyRidersAndScheduleFollowUp() {
-        when(userRepository.findByIdentifier("user-123")).thenReturn(Optional.of(userEntity));
+    void shouldSkipNotificationWhenNoAttemptsPersisted() {
+        when(userRepository.findByIdentifier("user-123")).thenReturn(Optional.of(user));
         when(rideRequestRepository.save(any(RideRequestEntity.class))).thenReturn(persistedRequest);
-        List<Rider> nearbyRiders = List.of(Rider.builder().identifier("candidate-1").build());
-        List<Rider> persistedCandidates = List.of(Rider.builder().identifier("persisted-1").build());
-        when(ridersSearchService.findNearestVehicles(persistedRequest.getLocation(), Set.of()))
-                .thenReturn(nearbyRiders);
-        when(attemptService.createAttemptsForRound(persistedRequest, nearbyRiders, 1))
-                .thenReturn(persistedCandidates);
+        List<Rider> nearby = List.of(Rider.builder().identifier("candidate-1").build());
+        when(ridersSearchService.findNearestVehicles(persistedRequest.getLocation(), java.util.Collections.emptySet()))
+                .thenReturn(nearby);
+        when(attemptService.createAttemptsForRound(persistedRequest, nearby, 1)).thenReturn(List.of());
 
         service.processRideRequest(rideRequest);
 
-        verify(attemptService).createAttemptsForRound(persistedRequest, nearbyRiders, 1);
-        verify(notificationService).sendRabbitMqNotification(persistedCandidates, persistedRequest);
+        verify(attemptService).createAttemptsForRound(persistedRequest, nearby, 1);
+        verifyNoInteractions(notificationService, riderSearchScheduler);
+    }
+
+    @Test
+    void shouldNotifyRidersAndScheduleFollowUpWhenAttemptsExist() {
+        List<Rider> nearby = List.of(Rider.builder().identifier("persisted-1").build());
+        when(userRepository.findByIdentifier("user-123")).thenReturn(Optional.of(user));
+        when(rideRequestRepository.save(any(RideRequestEntity.class))).thenReturn(persistedRequest);
+        when(ridersSearchService.findNearestVehicles(persistedRequest.getLocation(), java.util.Collections.emptySet()))
+                .thenReturn(nearby);
+        when(attemptService.createAttemptsForRound(persistedRequest, nearby, 1)).thenReturn(nearby);
+
+        service.processRideRequest(rideRequest);
+
+        verify(notificationService).sendRabbitMqNotification(nearby, persistedRequest);
         verify(riderSearchScheduler).scheduleRidersSearch(persistedRequest.getId());
     }
 }
-

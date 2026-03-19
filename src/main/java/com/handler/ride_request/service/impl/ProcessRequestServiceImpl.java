@@ -16,9 +16,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.Optional;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -40,54 +40,41 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
         }
 
         log.info("Processing new ride request for user {}", rideRequest.userIdentifier());
-        RideRequestEntity rideRequestEntity = saveRideRequest(rideRequest);
-        if (isRideRequestEntityEmpty(rideRequestEntity)) {
-            log.warn("Skipping ride request processing because the entity could not be persisted (user may be unknown)");
+        RideRequestEntity savedRequest = persistRideRequest(rideRequest)
+                .orElseThrow(() -> new IllegalStateException("Unable to persist ride request for user " + rideRequest.userIdentifier()));
+
+        List<Rider> nearbyRiders = findNearbyRiders(savedRequest);
+        if (nearbyRiders.isEmpty()) {
+            log.warn("Skipping ride request processing because no nearby riders were found for request {}", savedRequest.getId());
             return;
         }
 
-        // Search for the 5 nearest riders to the requesters => By reading from database Redis.
-        List<Rider> riderData = ridersSearchService.findNearestVehicles(rideRequestEntity.getLocation(), Set.of());
-        if (riderData == null || riderData.isEmpty()) {
-            log.warn("Skipping ride request processing because no nearby riders were found for request {}", rideRequestEntity.getId());
+        log.debug("Found {} nearby riders for request {}", nearbyRiders.size(), savedRequest.getId());
+        List<Rider> persistedCandidates = attemptService.createAttemptsForRound(savedRequest, nearbyRiders, 1);
+        if (persistedCandidates.isEmpty()) {
+            log.warn("No rider attempts were persisted for request {}, notification skipped", savedRequest.getId());
             return;
         }
 
-        log.debug("Found {} nearby riders for request {}", riderData.size(), rideRequestEntity.getId());
-
-        List<Rider> persistedCandidates = attemptService.createAttemptsForRound(rideRequestEntity, riderData, 1);
-
-        //Once the 5 nearest riders are found => send them a notification via RabbitMq
-        //send RabbitMq requests where the key = rider identifier
-        notificationService.sendRabbitMqNotification(persistedCandidates, rideRequestEntity);
-        log.info("Notifications dispatched for ride request {}", rideRequestEntity.getId());
-
-        scheduleRidersSearch.scheduleRidersSearch(rideRequestEntity.getId());
-        log.info("Scheduled rider search follow-up for request {}", rideRequestEntity.getId());
-
+        notificationService.sendRabbitMqNotification(persistedCandidates, savedRequest);
+        scheduleRidersSearch.scheduleRidersSearch(savedRequest.getId());
+        log.info("Scheduled rider search follow-up for request {}", savedRequest.getId());
     }
 
-
-    private RideRequestEntity saveRideRequest(RideRequest rideRequest) {
-        UserEntity userEntity = userRepository.findByIdentifier(rideRequest.userIdentifier()).orElse(null);
-
-        if (Objects.isNull(userEntity)) {
-            log.warn("No user found with identifier {}, cannot create ride request", rideRequest.userIdentifier());
-            return null;
-        }
-
-        try {
-            RideRequestEntity entity = RideRequestMapper.mapToRideRequestEntity(userEntity, rideRequest, StatusEnum.PENDING);
-            RideRequestEntity savedEntity = rideRequestRepository.save(entity);
-            log.debug("Persisted ride request {} for user {}", savedEntity.getId(), rideRequest.userIdentifier());
-            return savedEntity;
-        } catch (Exception ex) {
-            log.error("Failed to persist ride request for user {}", rideRequest.userIdentifier(), ex);
-            return null;
-        }
+    private Optional<RideRequestEntity> persistRideRequest(RideRequest rideRequest) {
+        return userRepository.findByIdentifier(rideRequest.userIdentifier())
+                .map(user -> saveRideRequest(rideRequest, user));
     }
 
-    private boolean isRideRequestEntityEmpty(RideRequestEntity rideRequestEntity){
-        return Objects.isNull(rideRequestEntity);
+    private RideRequestEntity saveRideRequest(RideRequest rideRequest, UserEntity userEntity) {
+        RideRequestEntity entity = RideRequestMapper.mapToRideRequestEntity(userEntity, rideRequest, StatusEnum.PENDING);
+        RideRequestEntity savedEntity = rideRequestRepository.save(entity);
+        log.debug("Persisted ride request {} for user {}", savedEntity.getId(), rideRequest.userIdentifier());
+        return savedEntity;
+    }
+
+    private List<Rider> findNearbyRiders(RideRequestEntity rideRequest) {
+        List<Rider> riders = ridersSearchService.findNearestVehicles(rideRequest.getLocation(), Collections.emptySet());
+        return riders == null ? List.of() : riders;
     }
 }
