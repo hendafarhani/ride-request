@@ -128,7 +128,7 @@ class RidersSearchServiceImplTest {
     }
 
     private GeoResult<RedisGeoCommands.GeoLocation<String>> geoResult(String identifier, Point point, double distanceKm) {
-        RedisGeoCommands.GeoLocation<String> location = new RedisGeoCommands.GeoLocation<>(identifier, point);
-        return new GeoResult<>(location, new Distance(distanceKm, Metrics.KILOMETERS));
+        RedisGeoCommands.GeoLocation<String> geoResult = new RedisGeoCommands.GeoLocation<>(identifier, point);
+        return new GeoResult<>(geoResult, new Distance(distanceKm, Metrics.KILOMETERS));
     }
 }
