@@ -6,7 +6,7 @@ import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.service.RidersSearchService;
 import com.handler.ride_request.enums.StatusEnum;
-import com.handler.ride_request.service.impl.RideRequestDriverAttemptService;
+import com.handler.ride_request.service.impl.RideRequestDriverAttemptServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -32,7 +32,7 @@ public class RiderSearchScheduler {
     private final RideRequestRepository rideRequestRepository;
     private final NotificationService notificationService;
     private final RidersSearchService ridersSearchService;
-    private final RideRequestDriverAttemptService attemptService;
+    private final RideRequestDriverAttemptServiceImpl attemptService;
 
 
     public void scheduleRidersSearch(Long rideRequestId) {

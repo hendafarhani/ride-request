@@ -7,6 +7,7 @@ import com.handler.ride_request.enums.AttemptStatus;
 import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
 import com.handler.ride_request.repository.RiderRepository;
+import com.handler.ride_request.service.RideRequestDriverAttemptService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,7 +20,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RideRequestDriverAttemptService {
+public class RideRequestDriverAttemptServiceImpl implements RideRequestDriverAttemptService {
 
     private final RideRequestDriverAttemptRepository attemptRepository;
     private final RiderRepository riderRepository;

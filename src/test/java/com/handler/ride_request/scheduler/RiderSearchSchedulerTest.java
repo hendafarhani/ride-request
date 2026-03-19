@@ -7,7 +7,7 @@ import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.service.RidersSearchService;
-import com.handler.ride_request.service.impl.RideRequestDriverAttemptService;
+import com.handler.ride_request.service.impl.RideRequestDriverAttemptServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +42,7 @@ class RiderSearchSchedulerTest {
     private RidersSearchService ridersSearchService;
 
     @Mock
-    private RideRequestDriverAttemptService attemptService;
+    private RideRequestDriverAttemptServiceImpl attemptService;
 
     @InjectMocks
     private RiderSearchScheduler scheduler;

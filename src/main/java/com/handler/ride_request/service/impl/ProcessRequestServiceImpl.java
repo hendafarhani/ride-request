@@ -30,7 +30,7 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
     private final NotificationService notificationService;
     private final RidersSearchService ridersSearchService;
     private final RiderSearchScheduler scheduleRidersSearch;
-    private final RideRequestDriverAttemptService attemptService;
+    private final RideRequestDriverAttemptServiceImpl attemptService;
 
     @Override
     public void processRideRequest(RideRequest rideRequest) {

@@ -11,7 +11,7 @@ import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.repository.UserRepository;
-import com.handler.ride_request.service.impl.RideRequestDriverAttemptService;
+import com.handler.ride_request.service.impl.RideRequestDriverAttemptServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,10 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @Transactional
-class RideRequestDriverAttemptServiceIntegrationTest {
+class RideRequestDriverAttemptServiceImplIntegrationTest {
 
     @Autowired
-    private RideRequestDriverAttemptService service;
+    private RideRequestDriverAttemptServiceImpl service;
 
     @Autowired
     private RideRequestDriverAttemptRepository attemptRepository;

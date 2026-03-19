@@ -35,7 +35,7 @@ class RideAcceptanceServiceImplTest {
     private NotificationService notificationService;
 
     @Mock
-    private RideRequestDriverAttemptService attemptService;
+    private RideRequestDriverAttemptServiceImpl attemptService;
 
     @InjectMocks
     private RideAcceptanceServiceImpl service;

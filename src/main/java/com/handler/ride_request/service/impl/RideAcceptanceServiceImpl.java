@@ -24,7 +24,7 @@ public class RideAcceptanceServiceImpl implements RideAcceptanceService {
     private final RideRequestRepository rideRequestRepository;
     private final RiderRepository riderRepository;
     private final NotificationService notificationService;
-    private final RideRequestDriverAttemptService attemptService;
+    private final RideRequestDriverAttemptServiceImpl attemptService;
 
     @Override
     @Transactional

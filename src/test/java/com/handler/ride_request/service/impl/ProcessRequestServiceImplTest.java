@@ -45,7 +45,7 @@ class ProcessRequestServiceImplTest {
     private RiderSearchScheduler riderSearchScheduler;
 
     @Mock
-    private RideRequestDriverAttemptService attemptService;
+    private RideRequestDriverAttemptServiceImpl attemptService;
 
     @InjectMocks
     private ProcessRequestServiceImpl service;
