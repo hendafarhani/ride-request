@@ -108,11 +108,3 @@ public class RiderSearchScheduler {
         return StatusEnum.PENDING.equals(request.getStatus());
     }
 }
-/**
- * Les testes unitaires et les tests d'intégration
- * jenkins
- * Article Kafka
- * Microservices
- * Docker
- * Kubernates
- * **/
