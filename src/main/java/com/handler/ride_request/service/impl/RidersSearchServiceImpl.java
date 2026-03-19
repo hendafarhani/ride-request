@@ -26,43 +26,37 @@ public class RidersSearchServiceImpl implements RidersSearchService {
     public static final int DISTANCE = 10;
 
     public List<Rider> findNearestVehicles(Point location, Set<String> excludedIdentifiers) {
+        if (location == null) {
+            throw new IllegalArgumentException("location must not be null");
+        }
 
-        RedisGeoCommands.GeoRadiusCommandArgs args = getGeoRaduisCommandArgs();
-        Circle circle = getCircle(location);
+        GeoResults<RedisGeoCommands.GeoLocation<String>> response = queryNearbyVehicles(location);
+        if (isResponseEmpty(response)) {
+            return List.of();
+        }
 
-        GeoResults<RedisGeoCommands.GeoLocation<String>> response = stringRedisTemplate.opsForGeo()
-                .radius(VEHICLE_LOCATION, circle, args);
-
-        if(isResponseEmpty(response)) return List.of();
-
-        assert response != null;
         return response.getContent().stream()
-                .filter(data -> isNotExcluded(data, excludedIdentifiers))
-                .map(this::getRider)
+                .filter(result -> isAllowed(result, excludedIdentifiers))
+                .map(this::mapToRider)
                 .limit(MAX_NUMBER_RIDERS)
                 .collect(Collectors.toList());
     }
 
-    private RedisGeoCommands.GeoRadiusCommandArgs getGeoRaduisCommandArgs(){
-        return RedisGeoCommands
-                .GeoRadiusCommandArgs.newGeoRadiusArgs()
+    private GeoResults<RedisGeoCommands.GeoLocation<String>> queryNearbyVehicles(Point location) {
+        return stringRedisTemplate.opsForGeo()
+                .radius(VEHICLE_LOCATION, new Circle(location, new Distance(DISTANCE, Metrics.KILOMETERS)), geoRadiusCommandArgs());
+    }
+
+    private RedisGeoCommands.GeoRadiusCommandArgs geoRadiusCommandArgs() {
+        return RedisGeoCommands.GeoRadiusCommandArgs.newGeoRadiusArgs()
                 .includeCoordinates()
                 .includeDistance()
                 .sortAscending();
     }
 
-    private Circle getCircle(Point location){
-        return new Circle(location, new Distance(RidersSearchServiceImpl.DISTANCE, Metrics.KILOMETERS));
-    }
-
-
-    private Rider getRider(GeoResult<RedisGeoCommands.GeoLocation<String>> data){
+    private Rider mapToRider(GeoResult<RedisGeoCommands.GeoLocation<String>> data) {
         String identifier = data.getContent().getName();
-        String hash = Optional.ofNullable(stringRedisTemplate.opsForGeo().hash(VEHICLE_LOCATION, identifier))
-                .stream()
-                .flatMap(List::stream)
-                .findFirst()
-                .orElse(StringUtil.EMPTY_STRING);
+        String hash = resolveHash(identifier);
 
         return Rider.builder()
                 .identifier(identifier)
@@ -72,12 +66,20 @@ public class RidersSearchServiceImpl implements RidersSearchService {
                 .build();
     }
 
-    private boolean isResponseEmpty(GeoResults<RedisGeoCommands.GeoLocation<String>> response){
+    private String resolveHash(String identifier) {
+        return Optional.ofNullable(stringRedisTemplate.opsForGeo().hash(VEHICLE_LOCATION, identifier))
+                .stream()
+                .flatMap(List::stream)
+                .findFirst()
+                .orElse(StringUtil.EMPTY_STRING);
+    }
+
+    private boolean isResponseEmpty(GeoResults<RedisGeoCommands.GeoLocation<String>> response) {
         return Objects.isNull(response) || response.getContent().isEmpty();
     }
 
-    private boolean isNotExcluded(GeoResult<RedisGeoCommands.GeoLocation<String>> data, Set<String> excludedIdentifiers) {
-        if (Objects.isNull(excludedIdentifiers) || excludedIdentifiers.isEmpty()) {
+    private boolean isAllowed(GeoResult<RedisGeoCommands.GeoLocation<String>> data, Set<String> excludedIdentifiers) {
+        if (excludedIdentifiers == null || excludedIdentifiers.isEmpty()) {
             return true;
         }
         return !excludedIdentifiers.contains(data.getContent().getName());
