@@ -41,7 +41,9 @@ class RidersSearchServiceImplTest {
 
     @Test
     void shouldThrowWhenLocationIsNull() {
-        assertThatThrownBy(() -> service.findNearestVehicles(null, Set.of()))
+        Set<String> excludedIdentifiers = Set.of();
+
+        assertThatThrownBy(() -> service.findNearestVehicles(null, excludedIdentifiers))
                 .isInstanceOf(IllegalArgumentException.class);
 
         verifyNoInteractions(geoOperations);
@@ -130,4 +132,3 @@ class RidersSearchServiceImplTest {
         return new GeoResult<>(location, new Distance(distanceKm, Metrics.KILOMETERS));
     }
 }
-
