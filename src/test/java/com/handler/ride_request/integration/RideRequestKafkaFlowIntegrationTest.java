@@ -1,7 +1,6 @@
 package com.handler.ride_request.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.handler.ride_request.entity.RideRequestDriverAttemptEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
