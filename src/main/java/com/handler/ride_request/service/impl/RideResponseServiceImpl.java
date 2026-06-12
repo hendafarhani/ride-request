@@ -2,10 +2,12 @@ package com.handler.ride_request.service.impl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
-import com.handler.ride_request.service.RideAcceptanceService;
+import com.handler.ride_request.service.EventOutboxService;
+import com.handler.ride_request.service.RideResponseService;
 import com.handler.ride_request.enums.StatusEnum;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -19,12 +21,13 @@ import java.time.OffsetDateTime;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RideAcceptanceServiceImpl implements RideAcceptanceService {
+public class RideResponseServiceImpl implements RideResponseService {
 
     private final RideRequestRepository rideRequestRepository;
     private final RiderRepository riderRepository;
     private final NotificationService notificationService;
     private final RideRequestDriverAttemptServiceImpl attemptService;
+    private final EventOutboxService eventOutboxService;
 
     @Override
     @Transactional
@@ -41,7 +44,23 @@ public class RideAcceptanceServiceImpl implements RideAcceptanceService {
 
         registerAcceptedAttempt(rideRequest, rider, acceptedAt);
         updateRideRequest(rideRequest, rider, acceptedAt);
+        eventOutboxService.recordRideRequestEvent(RideRequestEventType.REQUEST_ACCEPTED, rideRequest);
         notifyRequester(rideRequest, rider);
+    }
+
+    @Override
+    @Transactional
+    public void declineRide(String rideRequestIdentifier, String riderIdentifier) {
+        validateIdentifiers(rideRequestIdentifier, riderIdentifier);
+
+        RideRequestEntity rideRequest = loadRideRequest(rideRequestIdentifier);
+        ensureRequestIsPending(rideRequest);
+
+        OffsetDateTime declinedAt = OffsetDateTime.now();
+        attemptService.markDeclined(rideRequest.getId(), riderIdentifier, declinedAt);
+        eventOutboxService.recordRiderEvent(RideRequestEventType.RIDER_DECLINED, rideRequest, riderIdentifier);
+
+        log.info("Ride request {} declined by rider {}", rideRequest.getIdentifier(), riderIdentifier);
     }
 
     private void validateIdentifiers(String rideRequestIdentifier, String riderIdentifier) {

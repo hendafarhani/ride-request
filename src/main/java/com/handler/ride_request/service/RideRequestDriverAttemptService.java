@@ -14,5 +14,6 @@ public interface RideRequestDriverAttemptService {
     int getNextNotificationRound(Long rideRequestId);
     void markOutstandingAttemptsAsTimedOut(Long rideRequestId);
     void markAccepted(Long rideRequestId, String riderIdentifier, OffsetDateTime respondedAt);
+    void markDeclined(Long rideRequestId, String riderIdentifier, OffsetDateTime respondedAt);
     void markOtherOpenAttemptsAsCanceled(Long rideRequestId, String acceptedRiderIdentifier, OffsetDateTime respondedAt);
 }

@@ -2,10 +2,12 @@ package com.handler.ride_request.service.impl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
+import com.handler.ride_request.service.EventOutboxService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,7 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class RideAcceptanceServiceImplTest {
+class RideResponseServiceImplTest {
 
     @Mock
     private RideRequestRepository rideRequestRepository;
@@ -37,8 +39,11 @@ class RideAcceptanceServiceImplTest {
     @Mock
     private RideRequestDriverAttemptServiceImpl attemptService;
 
+    @Mock
+    private EventOutboxService eventOutboxService;
+
     @InjectMocks
-    private RideAcceptanceServiceImpl service;
+    private RideResponseServiceImpl service;
 
     private RideRequestEntity pendingRequest;
     private RiderEntity rider;
@@ -126,7 +131,47 @@ class RideAcceptanceServiceImplTest {
         assertThat(pendingRequest.getStatus()).isEqualTo(StatusEnum.ACCEPTED);
         assertThat(pendingRequest.getAcceptedRiderIdentifier()).isEqualTo("rider-999");
         assertThat(pendingRequest.getAcceptedAt()).isNotNull();
+        verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_ACCEPTED, pendingRequest);
         verify(notificationService).notifyRideAccepted(pendingRequest, "rider-999");
     }
-}
 
+    @Test
+    void shouldThrowWhenDeclinedRideRequestIsMissing() {
+        when(rideRequestRepository.findByIdentifier("ride-404"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.declineRide("ride-404", "rider-1"))
+                .isInstanceOf(EntityNotFoundException.class);
+
+        verify(rideRequestRepository).findByIdentifier("ride-404");
+        verifyNoInteractions(riderRepository, attemptService, notificationService);
+    }
+
+    @Test
+    void shouldThrowWhenDeclinedRideRequestIsNotPending() {
+        pendingRequest.setStatus(StatusEnum.ACCEPTED);
+        when(rideRequestRepository.findByIdentifier("ride-123"))
+                .thenReturn(Optional.of(pendingRequest));
+
+        assertThatThrownBy(() -> service.declineRide("ride-123", "rider-999"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(riderRepository, attemptService, notificationService);
+    }
+
+    @Test
+    void shouldDeclineRideAttemptOnly() {
+        when(rideRequestRepository.findByIdentifier("ride-123"))
+                .thenReturn(Optional.of(pendingRequest));
+
+        service.declineRide("ride-123", "rider-999");
+
+        verify(attemptService).markDeclined(eq(10L), eq("rider-999"), any(OffsetDateTime.class));
+        verify(eventOutboxService).recordRiderEvent(RideRequestEventType.RIDER_DECLINED, pendingRequest, "rider-999");
+        verifyNoInteractions(riderRepository, notificationService);
+        verify(rideRequestRepository, never()).save(any());
+        assertThat(pendingRequest.getStatus()).isEqualTo(StatusEnum.PENDING);
+        assertThat(pendingRequest.getAcceptedRiderIdentifier()).isNull();
+        assertThat(pendingRequest.getAcceptedAt()).isNull();
+    }
+}

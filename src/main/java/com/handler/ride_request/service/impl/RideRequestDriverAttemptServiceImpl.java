@@ -86,7 +86,17 @@ public class RideRequestDriverAttemptServiceImpl implements RideRequestDriverAtt
     public void markAccepted(Long rideRequestId, String riderIdentifier, OffsetDateTime respondedAt) {
         RideRequestDriverAttemptEntity attempt = attemptRepository.findByRideRequestIdAndRiderIdentifier(rideRequestId, riderIdentifier)
                 .orElseThrow(() -> new IllegalStateException("Rider " + riderIdentifier + " was not notified for ride " + rideRequestId));
+        ensureAttemptIsNotified(attempt, riderIdentifier, rideRequestId);
         attempt.setStatus(AttemptStatus.ACCEPTED);
+        attempt.setRespondedAt(respondedAt);
+        attemptRepository.save(attempt);
+    }
+
+    public void markDeclined(Long rideRequestId, String riderIdentifier, OffsetDateTime respondedAt) {
+        RideRequestDriverAttemptEntity attempt = attemptRepository.findByRideRequestIdAndRiderIdentifier(rideRequestId, riderIdentifier)
+                .orElseThrow(() -> new IllegalStateException("Rider " + riderIdentifier + " was not notified for ride " + rideRequestId));
+        ensureAttemptIsNotified(attempt, riderIdentifier, rideRequestId);
+        attempt.setStatus(AttemptStatus.DECLINED);
         attempt.setRespondedAt(respondedAt);
         attemptRepository.save(attempt);
     }
@@ -146,5 +156,12 @@ public class RideRequestDriverAttemptServiceImpl implements RideRequestDriverAtt
             attempt.setStatus(status);
             attempt.setRespondedAt(respondedAt);
         });
+    }
+
+    private void ensureAttemptIsNotified(RideRequestDriverAttemptEntity attempt, String riderIdentifier, Long rideRequestId) {
+        if (!AttemptStatus.NOTIFIED.equals(attempt.getStatus())) {
+            throw new IllegalStateException("Rider " + riderIdentifier + " attempt for ride " + rideRequestId
+                    + " is not awaiting response");
+        }
     }
 }

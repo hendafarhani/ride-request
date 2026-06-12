@@ -1,7 +1,7 @@
 package com.handler.ride_request.rabbitmq.listener;
 
 import com.handler.ride_request.rabbitmq.model.RideAcceptanceMessage;
-import com.handler.ride_request.service.RideAcceptanceService;
+import com.handler.ride_request.service.RideResponseService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class RideAcceptanceListener {
 
-    private final RideAcceptanceService rideAcceptanceService;
+    private final RideResponseService rideResponseService;
 
     @RabbitListener(queues = "${ride.acceptance.queue:ride.acceptance.queue}")
     public void onRideAccepted(RideAcceptanceMessage message) {
@@ -29,7 +29,7 @@ public class RideAcceptanceListener {
         }
 
         try {
-            rideAcceptanceService.acceptRide(message.rideRequestIdentifier(), message.riderIdentifier());
+            rideResponseService.acceptRide(message.rideRequestIdentifier(), message.riderIdentifier());
         } catch (EntityNotFoundException | IllegalStateException | IllegalArgumentException ex) {
             log.warn("Ignoring ride acceptance for {} due to {}", message.rideRequestIdentifier(), ex.getMessage());
         }

@@ -15,12 +15,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RideRequestDriverAttemptServiceImplTest {
@@ -86,6 +86,46 @@ class RideRequestDriverAttemptServiceImplTest {
         assertThat(attempt.getNotifiedAt()).isNotNull();
     }
 
+    @Test
+    void shouldMarkNotifiedAttemptAsDeclined() {
+        RideRequestDriverAttemptEntity attempt = RideRequestDriverAttemptEntity.builder()
+                .status(AttemptStatus.NOTIFIED)
+                .build();
+        when(attemptRepository.findByRideRequestIdAndRiderIdentifier(7L, "rider-1"))
+                .thenReturn(Optional.of(attempt));
+
+        service.markDeclined(7L, "rider-1", java.time.OffsetDateTime.now());
+
+        assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.DECLINED);
+        assertThat(attempt.getRespondedAt()).isNotNull();
+        verify(attemptRepository).save(attempt);
+    }
+
+    @Test
+    void shouldRejectDeclineForUnknownAttempt() {
+        when(attemptRepository.findByRideRequestIdAndRiderIdentifier(7L, "missing"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.markDeclined(7L, "missing", java.time.OffsetDateTime.now()))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(attemptRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectDeclineWhenAttemptIsNotNotified() {
+        RideRequestDriverAttemptEntity attempt = RideRequestDriverAttemptEntity.builder()
+                .status(AttemptStatus.TIMED_OUT)
+                .build();
+        when(attemptRepository.findByRideRequestIdAndRiderIdentifier(7L, "rider-1"))
+                .thenReturn(Optional.of(attempt));
+
+        assertThatThrownBy(() -> service.markDeclined(7L, "rider-1", java.time.OffsetDateTime.now()))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(attemptRepository, never()).save(any());
+    }
+
     private RideRequestEntity buildRideRequest(long id) {
         return RideRequestEntity.builder().id(id).build();
     }
@@ -98,4 +138,3 @@ class RideRequestDriverAttemptServiceImplTest {
         return RiderEntity.builder().identifier(identifier).build();
     }
 }
-
