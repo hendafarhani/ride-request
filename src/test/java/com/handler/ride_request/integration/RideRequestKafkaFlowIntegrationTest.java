@@ -1,14 +1,18 @@
 package com.handler.ride_request.integration;
 
+import com.handler.ride_request.entity.EventOutboxEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OutboxEventStatus;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.model.Location;
 import com.handler.ride_request.model.RideRequest;
 import com.handler.ride_request.rabbitmq.model.RideNotification;
+import com.handler.ride_request.repository.EventOutboxRepository;
 import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
@@ -96,6 +100,9 @@ class RideRequestKafkaFlowIntegrationTest {
     @Autowired
     private RideRequestDriverAttemptRepository attemptRepository;
 
+    @Autowired
+    private EventOutboxRepository eventOutboxRepository;
+
     @DynamicPropertySource
     static void registerContainerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", mysql::getJdbcUrl);
@@ -113,6 +120,7 @@ class RideRequestKafkaFlowIntegrationTest {
 
     @BeforeEach
     void cleanState() {
+        eventOutboxRepository.deleteAll();
         attemptRepository.deleteAll();
         rideRequestRepository.deleteAll();
         riderRepository.deleteAll();
@@ -146,6 +154,16 @@ class RideRequestKafkaFlowIntegrationTest {
 
             assertThat(attemptRepository.findByRideRequestIdAndStatus(
                     rideRequests.getFirst().getId(), AttemptStatus.NOTIFIED)).hasSize(2);
+
+            assertThat(eventOutboxRepository.findByRideRequestIdAndStatusOrderByCreatedAtAsc(
+                    rideRequests.getFirst().getId(), OutboxEventStatus.PENDING))
+                    .extracting(EventOutboxEntity::getEventType)
+                    .contains(
+                            RideRequestEventType.REQUEST_CREATED,
+                            RideRequestEventType.REQUEST_STATUS_PENDING,
+                            RideRequestEventType.RIDER_NOTIFIED,
+                            RideRequestEventType.RIDER_NOTIFIED
+                    );
         });
 
         Object message = rabbitTemplate.receiveAndConvert("queue.user.rider-flow-1", 10_000);

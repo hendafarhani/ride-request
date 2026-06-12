@@ -1,11 +1,15 @@
 package com.handler.ride_request.integration;
 
+import com.handler.ride_request.entity.EventOutboxEntity;
 import com.handler.ride_request.entity.RideRequestDriverAttemptEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OutboxEventStatus;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
+import com.handler.ride_request.repository.EventOutboxRepository;
 import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
@@ -51,6 +55,9 @@ class RideRequestRepositoryIntegrationTest {
 
     @Autowired
     private RideRequestDriverAttemptRepository attemptRepository;
+
+    @Autowired
+    private EventOutboxRepository eventOutboxRepository;
 
     @DynamicPropertySource
     static void registerMysqlProperties(DynamicPropertyRegistry registry) {
@@ -128,6 +135,37 @@ class RideRequestRepositoryIntegrationTest {
                 .isEqualTo(2);
     }
 
+    @Test
+    void eventOutboxRepositoryFindsPendingEventsByAudienceAndMarksProcessed() {
+        RideRequestEntity request = rideRequestRepository.save(rideRequest("ride-outbox"));
+        EventOutboxEntity first = eventOutboxRepository.save(outboxEvent(
+                request, RideRequestEventType.REQUEST_CREATED, null, OffsetDateTime.parse("2026-05-30T10:00:00Z")));
+        EventOutboxEntity second = eventOutboxRepository.save(outboxEvent(
+                request, RideRequestEventType.RIDER_NOTIFIED, "rider-outbox", OffsetDateTime.parse("2026-05-30T10:01:00Z")));
+        EventOutboxEntity processed = outboxEvent(
+                request, RideRequestEventType.REQUEST_TIMED_OUT, null, OffsetDateTime.parse("2026-05-30T10:02:00Z"));
+        processed.setStatus(OutboxEventStatus.PROCESSED);
+        eventOutboxRepository.save(processed);
+
+        assertThat(eventOutboxRepository.findByStatusOrderByCreatedAtAsc(OutboxEventStatus.PENDING))
+                .extracting(EventOutboxEntity::getId)
+                .contains(first.getId(), second.getId());
+
+        assertThat(eventOutboxRepository.findByRideRequestIdAndStatusOrderByCreatedAtAsc(request.getId(), OutboxEventStatus.PENDING))
+                .extracting(EventOutboxEntity::getEventType)
+                .containsExactly(RideRequestEventType.REQUEST_CREATED, RideRequestEventType.RIDER_NOTIFIED);
+
+        assertThat(eventOutboxRepository.findByRequesterIdAndStatusOrderByCreatedAtAsc(
+                request.getUser().getIdentifier(), OutboxEventStatus.PENDING))
+                .extracting(EventOutboxEntity::getId)
+                .containsExactly(first.getId(), second.getId());
+
+        assertThat(eventOutboxRepository.findByRiderIdAndStatusOrderByCreatedAtAsc("rider-outbox", OutboxEventStatus.PENDING))
+                .singleElement()
+                .extracting(EventOutboxEntity::getId)
+                .isEqualTo(second.getId());
+    }
+
     private RideRequestEntity rideRequest(String identifier) {
         UserEntity user = userRepository.save(UserEntity.builder()
                 .name("User " + identifier)
@@ -162,6 +200,23 @@ class RideRequestRepositoryIntegrationTest {
                 .notificationRound(notificationRound)
                 .notifiedAt(notifiedAt)
                 .status(status)
+                .build();
+    }
+
+    private EventOutboxEntity outboxEvent(RideRequestEntity request,
+                                          RideRequestEventType eventType,
+                                          String riderIdentifier,
+                                          OffsetDateTime createdAt) {
+        return EventOutboxEntity.builder()
+                .eventType(eventType)
+                .status(OutboxEventStatus.PENDING)
+                .rideRequestId(request.getId())
+                .rideRequestIdentifier(request.getIdentifier())
+                .requesterId(request.getUser().getIdentifier())
+                .riderId(riderIdentifier)
+                .payload("{}")
+                .createdAt(createdAt)
+                .updatedAt(createdAt)
                 .build();
     }
 }

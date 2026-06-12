@@ -3,6 +3,7 @@ package com.handler.ride_request.rabbitmq.service.impl;
 import com.handler.ride_request.rabbitmq.service.RabbitMQUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.core.*;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 @RequiredArgsConstructor
@@ -11,6 +12,7 @@ public class RabbitMQUserServiceImpl implements RabbitMQUserService {
 
     private final AmqpAdmin amqpAdmin;
 
+    @Qualifier("userExchange")
     private final DirectExchange userExchange;
 
     // Create and bind a queue for the user

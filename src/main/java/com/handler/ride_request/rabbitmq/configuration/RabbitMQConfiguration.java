@@ -43,6 +43,23 @@ public class RabbitMQConfiguration {
     }
 
     @Bean
+    public DirectExchange rideResponseExchange(@Value("${ride.response.exchange:ride.response.exchange}") String exchangeName) {
+        return new DirectExchange(exchangeName, true, false);
+    }
+
+    @Bean
+    public Queue rideResponseQueue(@Value("${ride.response.queue:ride.response.queue}") String queueName) {
+        return QueueBuilder.durable(queueName).build();
+    }
+
+    @Bean
+    public Binding rideResponseBinding(@Qualifier("rideResponseQueue") Queue rideResponseQueue,
+                                       @Qualifier("rideResponseExchange") DirectExchange rideResponseExchange,
+                                       @Value("${ride.response.routing-key:ride.response}") String routingKey) {
+        return BindingBuilder.bind(rideResponseQueue).to(rideResponseExchange).with(routingKey);
+    }
+
+    @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(jsonMessageConverter());
