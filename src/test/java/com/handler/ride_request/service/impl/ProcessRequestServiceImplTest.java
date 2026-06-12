@@ -2,6 +2,7 @@ package com.handler.ride_request.service.impl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.model.Location;
 import com.handler.ride_request.model.RideRequest;
@@ -10,6 +11,7 @@ import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.UserRepository;
 import com.handler.ride_request.scheduler.RiderSearchScheduler;
+import com.handler.ride_request.service.EventOutboxService;
 import com.handler.ride_request.service.RidersSearchService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +48,9 @@ class ProcessRequestServiceImplTest {
 
     @Mock
     private RideRequestDriverAttemptServiceImpl attemptService;
+
+    @Mock
+    private EventOutboxService eventOutboxService;
 
     @InjectMocks
     private ProcessRequestServiceImpl service;
@@ -102,6 +107,8 @@ class ProcessRequestServiceImplTest {
         service.processRideRequest(rideRequest);
 
         verify(ridersSearchService).findNearestVehicles(persistedRequest.getLocation(), java.util.Collections.emptySet());
+        verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_CREATED, persistedRequest);
+        verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_STATUS_PENDING, persistedRequest);
         verifyNoInteractions(attemptService, notificationService, riderSearchScheduler);
     }
 
@@ -117,6 +124,9 @@ class ProcessRequestServiceImplTest {
         service.processRideRequest(rideRequest);
 
         verify(attemptService).createAttemptsForRound(persistedRequest, nearby, 1);
+        verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_CREATED, persistedRequest);
+        verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_STATUS_PENDING, persistedRequest);
+        verify(eventOutboxService, never()).recordRiderEvent(any(), any(), any());
         verifyNoInteractions(notificationService, riderSearchScheduler);
     }
 
@@ -131,6 +141,9 @@ class ProcessRequestServiceImplTest {
 
         service.processRideRequest(rideRequest);
 
+        verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_CREATED, persistedRequest);
+        verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_STATUS_PENDING, persistedRequest);
+        verify(eventOutboxService).recordRiderEvent(RideRequestEventType.RIDER_NOTIFIED, persistedRequest, "persisted-1");
         verify(notificationService).sendRabbitMqNotification(nearby, persistedRequest);
         verify(riderSearchScheduler).scheduleRidersSearch(persistedRequest.getId());
     }

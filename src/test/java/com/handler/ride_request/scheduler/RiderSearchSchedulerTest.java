@@ -2,10 +2,12 @@ package com.handler.ride_request.scheduler;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
+import com.handler.ride_request.service.EventOutboxService;
 import com.handler.ride_request.service.RidersSearchService;
 import com.handler.ride_request.service.impl.RideRequestDriverAttemptServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +45,9 @@ class RiderSearchSchedulerTest {
 
     @Mock
     private RideRequestDriverAttemptServiceImpl attemptService;
+
+    @Mock
+    private EventOutboxService eventOutboxService;
 
     @InjectMocks
     private RiderSearchScheduler scheduler;
@@ -103,7 +108,7 @@ class RiderSearchSchedulerTest {
     }
 
     @Test
-    void handleRetry_marksCanceledAfterMaxRetries() throws Exception {
+    void handleRetry_marksTimedOutAfterMaxRetriesAndNotifiesRequester() throws Exception {
         when(rideRequestRepository.findById(pendingRequest.getId())).thenReturn(Optional.of(pendingRequest));
         ScheduledFuture<?> future = mock(ScheduledFuture.class);
 
@@ -112,9 +117,11 @@ class RiderSearchSchedulerTest {
 
         verify(attemptService).markOutstandingAttemptsAsTimedOut(pendingRequest.getId());
         verify(rideRequestRepository).save(pendingRequest);
-        assertThat(pendingRequest.getStatus()).isEqualTo(StatusEnum.CANCELED);
+        assertThat(pendingRequest.getStatus()).isEqualTo(StatusEnum.TIMED_OUT);
+        verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_TIMED_OUT, pendingRequest);
+        verify(notificationService).notifyRideTimedOut(pendingRequest);
         verify(future).cancel(false);
-        verifyNoInteractions(notificationService, ridersSearchService);
+        verifyNoInteractions(ridersSearchService);
     }
 
     @Test
@@ -132,8 +139,8 @@ class RiderSearchSchedulerTest {
 
         invokeHandleRetry(pendingRequest.getId(), executionCount, future);
 
-        verify(attemptService).markOutstandingAttemptsAsTimedOut(pendingRequest.getId());
         verify(attemptService).createAttemptsForRound(pendingRequest, newCandidates, 2);
+        verify(eventOutboxService).recordRiderEvent(RideRequestEventType.RIDER_NOTIFIED, pendingRequest, "new-1");
         verify(notificationService).sendRabbitMqNotification(newCandidates, pendingRequest);
         assertThat(executionCount.get()).isEqualTo(1);
         verify(future, never()).cancel(anyBoolean());
@@ -146,4 +153,3 @@ class RiderSearchSchedulerTest {
         method.invoke(scheduler, rideRequestId, executionCount, future);
     }
 }
-

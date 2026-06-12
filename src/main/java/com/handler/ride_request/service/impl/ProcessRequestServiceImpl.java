@@ -2,6 +2,7 @@ package com.handler.ride_request.service.impl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.mapper.RideRequestMapper;
 import com.handler.ride_request.model.RideRequest;
 import com.handler.ride_request.model.Rider;
@@ -9,12 +10,14 @@ import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.UserRepository;
 import com.handler.ride_request.scheduler.RiderSearchScheduler;
+import com.handler.ride_request.service.EventOutboxService;
 import com.handler.ride_request.service.ProcessRequestService;
 import com.handler.ride_request.service.RidersSearchService;
 import com.handler.ride_request.enums.StatusEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
@@ -31,8 +34,10 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
     private final RidersSearchService ridersSearchService;
     private final RiderSearchScheduler scheduleRidersSearch;
     private final RideRequestDriverAttemptServiceImpl attemptService;
+    private final EventOutboxService eventOutboxService;
 
     @Override
+    @Transactional
     public void processRideRequest(RideRequest rideRequest) {
         if (rideRequest == null) {
             log.error("Received null ride request payload");
@@ -56,6 +61,8 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
             return;
         }
 
+        persistedCandidates.forEach(rider ->
+                eventOutboxService.recordRiderEvent(RideRequestEventType.RIDER_NOTIFIED, savedRequest, rider.getIdentifier()));
         notificationService.sendRabbitMqNotification(persistedCandidates, savedRequest);
         scheduleRidersSearch.scheduleRidersSearch(savedRequest.getId());
         log.info("Scheduled rider search follow-up for request {}", savedRequest.getId());
@@ -69,6 +76,8 @@ public class ProcessRequestServiceImpl implements ProcessRequestService {
     private RideRequestEntity saveRideRequest(RideRequest rideRequest, UserEntity userEntity) {
         RideRequestEntity entity = RideRequestMapper.mapToRideRequestEntity(userEntity, rideRequest, StatusEnum.PENDING);
         RideRequestEntity savedEntity = rideRequestRepository.save(entity);
+        eventOutboxService.recordRideRequestEvent(RideRequestEventType.REQUEST_CREATED, savedEntity);
+        eventOutboxService.recordRideRequestEvent(RideRequestEventType.REQUEST_STATUS_PENDING, savedEntity);
         log.debug("Persisted ride request {} for user {}", savedEntity.getId(), rideRequest.userIdentifier());
         return savedEntity;
     }

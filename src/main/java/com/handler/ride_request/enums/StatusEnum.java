@@ -5,5 +5,6 @@ public enum StatusEnum {
     PENDING,
     PROCESSED,
     CANCELED,
-    ACCEPTED
+    ACCEPTED,
+    TIMED_OUT
 }

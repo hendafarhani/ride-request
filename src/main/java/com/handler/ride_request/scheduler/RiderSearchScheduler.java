@@ -1,9 +1,11 @@
 package com.handler.ride_request.scheduler;
 
 import com.handler.ride_request.entity.RideRequestEntity;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
+import com.handler.ride_request.service.EventOutboxService;
 import com.handler.ride_request.service.RidersSearchService;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.service.impl.RideRequestDriverAttemptServiceImpl;
@@ -33,6 +35,7 @@ public class RiderSearchScheduler {
     private final NotificationService notificationService;
     private final RidersSearchService ridersSearchService;
     private final RideRequestDriverAttemptServiceImpl attemptService;
+    private final EventOutboxService eventOutboxService;
 
 
     public void scheduleRidersSearch(Long rideRequestId) {
@@ -61,13 +64,14 @@ public class RiderSearchScheduler {
 
         if (isRetryTimesGreaterThanMaxRetries(executionCount)) {
             log.info("No confirmation received. Max retry times is exceeded.");
-            attemptService.markOutstandingAttemptsAsTimedOut(request.getId());
-            updateRideRequestCaseOfError(request, executionCount.get());
-            cancelFuture(future);
-            return;
+        attemptService.markOutstandingAttemptsAsTimedOut(request.getId());
+        updateRideRequestCaseOfTimeout(request, executionCount.get());
+        eventOutboxService.recordRideRequestEvent(RideRequestEventType.REQUEST_TIMED_OUT, request);
+        notificationService.notifyRideTimedOut(request);
+        cancelFuture(future);
+        return;
         }
 
-        attemptService.markOutstandingAttemptsAsTimedOut(request.getId());
         Set<String> attemptedRiderIdentifiers = attemptService.getAttemptedRiderIdentifiers(request.getId());
         List<Rider> nextRiders = ridersSearchService.findNearestVehicles(request.getLocation(), attemptedRiderIdentifiers);
         List<Rider> persistedCandidates = attemptService.createAttemptsForRound(
@@ -78,15 +82,17 @@ public class RiderSearchScheduler {
 
         log.info("No confirmation received within {} minutes. Relaunching search for ride {}.",
                 AWAITING_TIME_MIN, request.getIdentifier());
+        persistedCandidates.forEach(rider ->
+                eventOutboxService.recordRiderEvent(RideRequestEventType.RIDER_NOTIFIED, request, rider.getIdentifier()));
         notificationService.sendRabbitMqNotification(persistedCandidates, request);
         executionCount.incrementAndGet();
     }
 
-    private void updateRideRequestCaseOfError(RideRequestEntity request, int executionCount) {
-        request.setStatus(StatusEnum.CANCELED);
+    private void updateRideRequestCaseOfTimeout(RideRequestEntity request, int executionCount) {
+        request.setStatus(StatusEnum.TIMED_OUT);
         rideRequestRepository.save(request);
         log.info("Update of rideRequest with identifier {}, " +
-                "into canceled because the number of execution count is {}, and no rider is found.",
+                "into timed out because the number of execution count is {}, and no rider is found.",
                 request.getIdentifier(), executionCount);
     }
 

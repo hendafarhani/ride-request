@@ -3,6 +3,7 @@ package com.handler.ride_request.rabbitmq.service.impl;
 import com.handler.ride_request.entity.RideRequestDriverAttemptEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.enums.StatusEnum;
@@ -12,6 +13,7 @@ import com.handler.ride_request.rabbitmq.model.RideNotification;
 import com.handler.ride_request.rabbitmq.service.QueueChecker;
 import com.handler.ride_request.rabbitmq.service.RabbitMQUserService;
 import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
+import com.handler.ride_request.service.EventOutboxService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +46,9 @@ class NotificationServiceImplTest {
 
     @Mock
     private RideRequestDriverAttemptRepository attemptRepository;
+
+    @Mock
+    private EventOutboxService eventOutboxService;
 
     @InjectMocks
     private NotificationServiceImpl notificationService;
@@ -136,6 +141,32 @@ class NotificationServiceImplTest {
     }
 
     @Test
+    void notifyRideTimedOut_returnsImmediatelyWhenRideRequestIsNull() {
+        notificationService.notifyRideTimedOut(null);
+
+        verifyNoInteractions(queueChecker, rabbitMQUserService, rabbitTemplate, attemptRepository);
+    }
+
+    @Test
+    void notifyRideTimedOut_notifiesRequesterWithTimedOutStatus() {
+        stubUserExchange();
+        when(queueChecker.doesQueueExist("queue.user.requester-1")).thenReturn(false);
+        RideNotification timedOutNotification = RideNotification.builder().status(StatusEnum.TIMED_OUT).build();
+
+        try (MockedStatic<RideMapper> mapper = mockStatic(RideMapper.class)) {
+            mapper.when(() -> RideMapper.mapToRideNotification((String) null, rideRequest, StatusEnum.TIMED_OUT))
+                    .thenReturn(timedOutNotification);
+
+            notificationService.notifyRideTimedOut(rideRequest);
+        }
+
+        verify(queueChecker).doesQueueExist("queue.user.requester-1");
+        verify(rabbitMQUserService).createUserQueue("requester-1");
+        verify(rabbitTemplate).convertAndSend("user-exchange", "requester-1", timedOutNotification);
+        verifyNoInteractions(attemptRepository);
+    }
+
+    @Test
     void notifyRideAccepted_notifiesOtherRidersExceptAcceptedAndDeduplicates() {
         stubUserExchange();
         when(queueChecker.doesQueueExist(anyString())).thenReturn(true);
@@ -162,6 +193,8 @@ class NotificationServiceImplTest {
         verify(rabbitTemplate).convertAndSend("user-exchange", "rider-A", canceledNotification);
         verify(rabbitTemplate).convertAndSend("user-exchange", "rider-B", canceledNotification);
         verify(rabbitTemplate, times(3)).convertAndSend(anyString(), anyString(), any(Object.class));
+        verify(eventOutboxService).recordRiderEvent(RideRequestEventType.RIDER_CANCELED, rideRequest, "rider-A");
+        verify(eventOutboxService).recordRiderEvent(RideRequestEventType.RIDER_CANCELED, rideRequest, "rider-B");
         verify(rabbitMQUserService, never()).createUserQueue(any());
     }
 

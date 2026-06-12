@@ -2,6 +2,7 @@ package com.handler.ride_request.rabbitmq.service.impl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.rabbitmq.mapper.RideMapper;
 import com.handler.ride_request.rabbitmq.model.RideNotification;
@@ -10,10 +11,12 @@ import com.handler.ride_request.rabbitmq.service.QueueChecker;
 import com.handler.ride_request.rabbitmq.service.RabbitMQUserService;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
+import com.handler.ride_request.service.EventOutboxService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -25,10 +28,12 @@ import java.util.Objects;
 public class NotificationServiceImpl implements NotificationService {
 
     private final RabbitTemplate rabbitTemplate;
+    @Qualifier("userExchange")
     private final DirectExchange userExchange;
     private final QueueChecker queueChecker;
     private final RabbitMQUserService rabbitMQUserService;
     private final RideRequestDriverAttemptRepository attemptRepository;
+    private final EventOutboxService eventOutboxService;
     private static final String QUEUE_USER = "queue.user.";
 
     @Override
@@ -56,6 +61,21 @@ public class NotificationServiceImpl implements NotificationService {
         notifyOtherRiders(rideRequestEntity, acceptedRiderIdentifier);
     }
 
+    @Override
+    public void notifyRideTimedOut(RideRequestEntity rideRequestEntity) {
+        if (Objects.isNull(rideRequestEntity)) {
+            log.warn("Cannot notify timeout because rideRequestEntity is null");
+            return;
+        }
+
+        String requesterIdentifier = rideRequestEntity.getUser().getIdentifier();
+        ensureQueue(getQueueName(requesterIdentifier), requesterIdentifier);
+        sendNotification(requesterIdentifier,
+                RideMapper.mapToRideNotification((String) null, rideRequestEntity, StatusEnum.TIMED_OUT));
+        log.info("Notified requester {} that ride {} timed out",
+                requesterIdentifier, rideRequestEntity.getIdentifier());
+    }
+
     private void notifyRequester(RideRequestEntity rideRequestEntity, String acceptedRiderIdentifier) {
         String requesterIdentifier = rideRequestEntity.getUser().getIdentifier();
         ensureQueue(getQueueName(requesterIdentifier), requesterIdentifier);
@@ -79,6 +99,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         ridersToNotify.forEach(riderId -> {
             ensureQueue(getQueueName(riderId), riderId);
+            eventOutboxService.recordRiderEvent(RideRequestEventType.RIDER_CANCELED, rideRequestEntity, riderId);
             sendNotification(riderId,
                     RideMapper.mapToRideNotification(acceptedRiderIdentifier, rideRequestEntity, StatusEnum.CANCELED));
         });
