@@ -4,6 +4,7 @@ import com.handler.ride_request.entity.RideRequestDriverAttemptEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.mapper.RideRequestMapper;
 import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
 import com.handler.ride_request.repository.RiderRepository;
@@ -46,7 +47,7 @@ public class RideRequestDriverAttemptServiceImpl implements RideRequestDriverAtt
                 log.warn("Skipping rider {} because no MySQL rider record was found", rider.getIdentifier());
                 continue;
             }
-            attempts.add(buildAttempt(rideRequestEntity, persistedRider, notificationRound, notifiedAt));
+            attempts.add(RideRequestMapper.buildAttempt(rideRequestEntity, persistedRider, notificationRound, notifiedAt));
             persistedCandidates.add(rider);
         }
 
@@ -128,16 +129,6 @@ public class RideRequestDriverAttemptServiceImpl implements RideRequestDriverAtt
 
     private boolean isInvalidAttemptInput(RideRequestEntity rideRequestEntity, List<Rider> riders) {
         return rideRequestEntity == null || riders == null || riders.isEmpty();
-    }
-
-    private RideRequestDriverAttemptEntity buildAttempt(RideRequestEntity request, RiderEntity rider, int round, OffsetDateTime notifiedAt) {
-        return RideRequestDriverAttemptEntity.builder()
-                .rideRequest(request)
-                .rider(rider)
-                .notificationRound(round)
-                .notifiedAt(notifiedAt)
-                .status(AttemptStatus.NOTIFIED)
-                .build();
     }
 
     private Set<String> extractIdentifiers(List<Rider> riders) {

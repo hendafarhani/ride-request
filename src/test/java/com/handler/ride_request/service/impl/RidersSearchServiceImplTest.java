@@ -86,6 +86,30 @@ class RidersSearchServiceImplTest {
 
         assertThat(riders).hasSize(1);
         assertThat(riders.getFirst().getIdentifier()).isEqualTo("keep-me");
+        verify(geoOperations).hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "keep-me");
+        verify(geoOperations, never()).hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "skip-me");
+    }
+
+    @Test
+    void shouldMapRedisResultsToRidersWithResolvedHashDistanceAndPoint() {
+        Point riderPoint = new Point(11, 21);
+        GeoResults<RedisGeoCommands.GeoLocation<String>> results = new GeoResults<>(List.of(
+                geoResult("rider-1", riderPoint, 1.5)
+        ));
+
+        when(stringRedisTemplate.opsForGeo()).thenReturn(geoOperations);
+        when(geoOperations.radius(anyString(), any(Circle.class), any())).thenReturn(results);
+        when(geoOperations.hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "rider-1"))
+                .thenReturn(List.of("hash-1"));
+
+        List<Rider> riders = service.findNearestVehicles(location, Set.of());
+
+        assertThat(riders).singleElement().satisfies(rider -> {
+            assertThat(rider.getIdentifier()).isEqualTo("rider-1");
+            assertThat(rider.getHash()).isEqualTo("hash-1");
+            assertThat(rider.getAverageDistance()).isEqualTo(new Distance(1.5, Metrics.KILOMETERS).toString());
+            assertThat(rider.getPoint()).isEqualTo(riderPoint);
+        });
     }
 
     @Test
@@ -103,6 +127,25 @@ class RidersSearchServiceImplTest {
 
         assertThat(riders).singleElement().satisfies(rider -> {
             assertThat(rider.getIdentifier()).isEqualTo("no-hash");
+            assertThat(rider.getHash()).isEmpty();
+        });
+    }
+
+    @Test
+    void shouldFallbackToEmptyHashWhenRedisHashListIsEmpty() {
+        GeoResults<RedisGeoCommands.GeoLocation<String>> results = new GeoResults<>(List.of(
+                geoResult("empty-hash", new Point(11, 21), 1)
+        ));
+
+        when(stringRedisTemplate.opsForGeo()).thenReturn(geoOperations);
+        when(geoOperations.radius(anyString(), any(Circle.class), any())).thenReturn(results);
+        when(geoOperations.hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "empty-hash"))
+                .thenReturn(List.of());
+
+        List<Rider> riders = service.findNearestVehicles(location, Set.of());
+
+        assertThat(riders).singleElement().satisfies(rider -> {
+            assertThat(rider.getIdentifier()).isEqualTo("empty-hash");
             assertThat(rider.getHash()).isEmpty();
         });
     }

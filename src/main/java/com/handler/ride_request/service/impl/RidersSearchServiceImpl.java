@@ -1,5 +1,6 @@
 package com.handler.ride_request.service.impl;
 
+import com.handler.ride_request.mapper.RiderMapper;
 import com.handler.ride_request.model.Rider;
 import com.handler.ride_request.service.RidersSearchService;
 import io.netty.util.internal.StringUtil;
@@ -56,13 +57,7 @@ public class RidersSearchServiceImpl implements RidersSearchService {
     private Rider mapToRider(GeoResult<RedisGeoCommands.GeoLocation<String>> data) {
         String identifier = data.getContent().getName();
         String hash = resolveHash(identifier);
-
-        return Rider.builder()
-                .identifier(identifier)
-                .averageDistance(data.getDistance().toString())
-                .point(data.getContent().getPoint())
-                .hash(hash)
-                .build();
+        return RiderMapper.mapToRider(data, identifier, hash);
     }
 
     private String resolveHash(String identifier) {
