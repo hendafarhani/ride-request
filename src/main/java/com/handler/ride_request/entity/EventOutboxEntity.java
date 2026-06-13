@@ -46,7 +46,7 @@ public class EventOutboxEntity {
     private String riderId;
 
     @Lob
-    @Column(name = "payload", nullable = false)
+    @Column(name = "payload", nullable = false, columnDefinition = "LONGTEXT")
     private String payload;
 
     @Column(name = "created_at", nullable = false)

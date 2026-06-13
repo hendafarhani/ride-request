@@ -1,7 +1,8 @@
 package com.handler.ride_request.integration;
 
-import com.handler.ride_request.entity.EventOutboxEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.handler.ride_request.entity.EventOutboxEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
@@ -11,7 +12,6 @@ import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.model.Location;
 import com.handler.ride_request.model.RideRequest;
-import com.handler.ride_request.rabbitmq.model.RideNotification;
 import com.handler.ride_request.repository.EventOutboxRepository;
 import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
@@ -22,6 +22,7 @@ import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -166,13 +167,13 @@ class RideRequestKafkaFlowIntegrationTest {
                     );
         });
 
-        Object message = rabbitTemplate.receiveAndConvert("queue.user.rider-flow-1", 10_000);
+        Message message = rabbitTemplate.receive("queue.user.rider-flow-1", 10_000);
 
-        assertThat(message).isInstanceOf(RideNotification.class);
-        RideNotification notification = (RideNotification) message;
-        assertThat(notification.status()).isEqualTo(StatusEnum.PENDING);
-        assertThat(notification.riderIdentifier()).isEqualTo("rider-flow-1");
-        assertThat(notification.userIdentifier()).startsWith("user-flow");
+        assertThat(message).isNotNull();
+        JsonNode notification = objectMapper.readTree(message.getBody());
+        assertThat(notification.get("status").asText()).isEqualTo(StatusEnum.PENDING.name());
+        assertThat(notification.get("riderIdentifier").asText()).isEqualTo("rider-flow-1");
+        assertThat(notification.get("userIdentifier").asText()).startsWith("user-flow");
     }
 
     private RiderEntity rider(String identifier) {
