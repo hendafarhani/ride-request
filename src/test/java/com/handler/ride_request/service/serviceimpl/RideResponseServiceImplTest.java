@@ -1,4 +1,4 @@
-package com.handler.ride_request.service.impl;
+package com.handler.ride_request.service.serviceimpl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
@@ -8,6 +8,7 @@ import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.service.EventOutboxService;
+import com.handler.ride_request.service.RideRequestDriverOfferService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class RideResponseServiceImplTest {
     private NotificationService notificationService;
 
     @Mock
-    private RideRequestDriverAttemptServiceImpl attemptService;
+    private RideRequestDriverOfferService offerService;
 
     @Mock
     private EventOutboxService eventOutboxService;
@@ -66,7 +67,7 @@ class RideResponseServiceImplTest {
         assertThatThrownBy(() -> service.acceptRide("  ", "rider-1"))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        verifyNoInteractions(rideRequestRepository, riderRepository, attemptService, notificationService);
+        verifyNoInteractions(rideRequestRepository, riderRepository, offerService, notificationService);
     }
 
     @Test
@@ -74,7 +75,7 @@ class RideResponseServiceImplTest {
         assertThatThrownBy(() -> service.acceptRide("ride-1", null))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        verifyNoInteractions(rideRequestRepository, riderRepository, attemptService, notificationService);
+        verifyNoInteractions(rideRequestRepository, riderRepository, offerService, notificationService);
     }
 
     @Test
@@ -86,7 +87,7 @@ class RideResponseServiceImplTest {
                 .isInstanceOf(EntityNotFoundException.class);
 
         verify(rideRequestRepository).findByIdentifier("ride-404");
-        verifyNoInteractions(riderRepository, attemptService, notificationService);
+        verifyNoInteractions(riderRepository, offerService, notificationService);
     }
 
     @Test
@@ -100,7 +101,7 @@ class RideResponseServiceImplTest {
                 .isInstanceOf(EntityNotFoundException.class);
 
         verify(riderRepository).findByIdentifier("unknown");
-        verifyNoInteractions(attemptService, notificationService);
+        verifyNoInteractions(offerService, notificationService);
     }
 
     @Test
@@ -112,7 +113,7 @@ class RideResponseServiceImplTest {
         assertThatThrownBy(() -> service.acceptRide("ride-123", "rider-999"))
                 .isInstanceOf(IllegalStateException.class);
 
-        verifyNoInteractions(riderRepository, attemptService, notificationService);
+        verifyNoInteractions(riderRepository, offerService, notificationService);
     }
 
     @Test
@@ -125,8 +126,8 @@ class RideResponseServiceImplTest {
 
         service.acceptRide("ride-123", "rider-999");
 
-        verify(attemptService).markAccepted(eq(10L), eq("rider-999"), any(OffsetDateTime.class));
-        verify(attemptService).markOtherOpenAttemptsAsCanceled(eq(10L), eq("rider-999"), any(OffsetDateTime.class));
+        verify(offerService).markAccepted(eq(10L), eq("rider-999"), any(OffsetDateTime.class));
+        verify(offerService).markOtherOpenOffersAsCanceled(eq(10L), eq("rider-999"), any(OffsetDateTime.class));
         verify(rideRequestRepository).save(pendingRequest);
         assertThat(pendingRequest.getStatus()).isEqualTo(StatusEnum.ACCEPTED);
         assertThat(pendingRequest.getAcceptedRiderIdentifier()).isEqualTo("rider-999");
@@ -144,7 +145,7 @@ class RideResponseServiceImplTest {
                 .isInstanceOf(EntityNotFoundException.class);
 
         verify(rideRequestRepository).findByIdentifier("ride-404");
-        verifyNoInteractions(riderRepository, attemptService, notificationService);
+        verifyNoInteractions(riderRepository, offerService, notificationService);
     }
 
     @Test
@@ -156,17 +157,17 @@ class RideResponseServiceImplTest {
         assertThatThrownBy(() -> service.declineRide("ride-123", "rider-999"))
                 .isInstanceOf(IllegalStateException.class);
 
-        verifyNoInteractions(riderRepository, attemptService, notificationService);
+        verifyNoInteractions(riderRepository, offerService, notificationService);
     }
 
     @Test
-    void shouldDeclineRideAttemptOnly() {
+    void shouldDeclineRideOfferOnly() {
         when(rideRequestRepository.findByIdentifier("ride-123"))
                 .thenReturn(Optional.of(pendingRequest));
 
         service.declineRide("ride-123", "rider-999");
 
-        verify(attemptService).markDeclined(eq(10L), eq("rider-999"), any(OffsetDateTime.class));
+        verify(offerService).markDeclined(eq(10L), eq("rider-999"), any(OffsetDateTime.class));
         verify(eventOutboxService).recordRiderEvent(RideRequestEventType.RIDER_DECLINED, pendingRequest, "rider-999");
         verifyNoInteractions(riderRepository, notificationService);
         verify(rideRequestRepository, never()).save(any());

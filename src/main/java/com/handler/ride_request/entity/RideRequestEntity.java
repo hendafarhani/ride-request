@@ -28,7 +28,8 @@ public class RideRequestEntity {
     @Column(name = "identifier", unique = true)
     private String identifier;
 
-    @Column(name = "status")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 32)
     private StatusEnum status;
 
     @Column(name = "location")
@@ -42,5 +43,5 @@ public class RideRequestEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "rideRequest", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<RideRequestDriverAttemptEntity> driverAttempts = new ArrayList<>();
+    private List<RideRequestDriverOfferEntity> driverOffers = new ArrayList<>();
 }

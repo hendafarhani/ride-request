@@ -1,4 +1,4 @@
-package com.handler.ride_request.rabbitmq.service.impl;
+package com.handler.ride_request.rabbitmq.service.serviceimpl;
 
 import com.handler.ride_request.rabbitmq.service.RabbitMQUserService;
 import lombok.RequiredArgsConstructor;
@@ -14,20 +14,26 @@ public class RabbitMQUserServiceImpl implements RabbitMQUserService {
 
     @Qualifier("userExchange")
     private final DirectExchange userExchange;
+    private static final String QUEUE_USER = "queue.user.";
 
-    // Create and bind a queue for the user
     @Override
     public void createUserQueue(String userId) {
-        String queueName = "queue.user." + userId;
+        Queue userQueue = declareUserQueue(userId);
+        bindQueueToUserExchange(userQueue, userId);
+    }
 
-        // Declare a new queue
-        Queue userQueue = new Queue(queueName, true);
+    private Queue declareUserQueue(String userId) {
+        Queue userQueue = new Queue(queueName(userId), true);
         amqpAdmin.declareQueue(userQueue);
+        return userQueue;
+    }
 
-        // Bind the queue to the exchange with the user's identifier as the routing key
-        Binding binding = BindingBuilder.bind(userQueue)
-                .to(userExchange)
-                .with(userId);
+    private void bindQueueToUserExchange(Queue userQueue, String userId) {
+        Binding binding = BindingBuilder.bind(userQueue).to(userExchange).with(userId);
         amqpAdmin.declareBinding(binding);
+    }
+
+    private String queueName(String userId) {
+        return QUEUE_USER + userId;
     }
 }

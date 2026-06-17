@@ -1,12 +1,14 @@
-package com.handler.ride_request.service.impl;
+package com.handler.ride_request.service.serviceimpl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.enums.RideRequestEventType;
+import com.handler.ride_request.mapper.RideRequestMapper;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.service.EventOutboxService;
+import com.handler.ride_request.service.RideRequestDriverOfferService;
 import com.handler.ride_request.service.RideResponseService;
 import com.handler.ride_request.enums.StatusEnum;
 import jakarta.persistence.EntityNotFoundException;
@@ -26,7 +28,7 @@ public class RideResponseServiceImpl implements RideResponseService {
     private final RideRequestRepository rideRequestRepository;
     private final RiderRepository riderRepository;
     private final NotificationService notificationService;
-    private final RideRequestDriverAttemptServiceImpl attemptService;
+    private final RideRequestDriverOfferService offerService;
     private final EventOutboxService eventOutboxService;
 
     @Override
@@ -42,7 +44,7 @@ public class RideResponseServiceImpl implements RideResponseService {
 
         OffsetDateTime acceptedAt = OffsetDateTime.now();
 
-        registerAcceptedAttempt(rideRequest, rider, acceptedAt);
+        registerAcceptedOffer(rideRequest, rider, acceptedAt);
         updateRideRequest(rideRequest, rider, acceptedAt);
         eventOutboxService.recordRideRequestEvent(RideRequestEventType.REQUEST_ACCEPTED, rideRequest);
         notifyRequester(rideRequest, rider);
@@ -57,7 +59,7 @@ public class RideResponseServiceImpl implements RideResponseService {
         ensureRequestIsPending(rideRequest);
 
         OffsetDateTime declinedAt = OffsetDateTime.now();
-        attemptService.markDeclined(rideRequest.getId(), riderIdentifier, declinedAt);
+        offerService.markDeclined(rideRequest.getId(), riderIdentifier, declinedAt);
         eventOutboxService.recordRiderEvent(RideRequestEventType.RIDER_DECLINED, rideRequest, riderIdentifier);
 
         log.info("Ride request {} declined by rider {}", rideRequest.getIdentifier(), riderIdentifier);
@@ -90,15 +92,13 @@ public class RideResponseServiceImpl implements RideResponseService {
         }
     }
 
-    private void registerAcceptedAttempt(RideRequestEntity rideRequest, RiderEntity rider, OffsetDateTime acceptedAt) {
-        attemptService.markAccepted(rideRequest.getId(), rider.getIdentifier(), acceptedAt);
-        attemptService.markOtherOpenAttemptsAsCanceled(rideRequest.getId(), rider.getIdentifier(), acceptedAt);
+    private void registerAcceptedOffer(RideRequestEntity rideRequest, RiderEntity rider, OffsetDateTime acceptedAt) {
+        offerService.markAccepted(rideRequest.getId(), rider.getIdentifier(), acceptedAt);
+        offerService.markOtherOpenOffersAsCanceled(rideRequest.getId(), rider.getIdentifier(), acceptedAt);
     }
 
     private void updateRideRequest(RideRequestEntity rideRequest, RiderEntity rider, OffsetDateTime acceptedAt) {
-        rideRequest.setStatus(StatusEnum.ACCEPTED);
-        rideRequest.setAcceptedRiderIdentifier(rider.getIdentifier());
-        rideRequest.setAcceptedAt(acceptedAt);
+        RideRequestMapper.markRideRequestAsAccepted(rideRequest, rider, acceptedAt);
         rideRequestRepository.save(rideRequest);
     }
 

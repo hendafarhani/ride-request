@@ -1,4 +1,4 @@
-package com.handler.ride_request.service.impl;
+package com.handler.ride_request.service.serviceimpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.handler.ride_request.entity.EventOutboxEntity;
@@ -87,12 +87,21 @@ public class EventOutboxServiceImpl implements EventOutboxService {
         Objects.requireNonNull(eventType, "eventType must not be null");
         Objects.requireNonNull(rideRequest, "rideRequest must not be null");
 
-        EventOutboxEntity event = EventOutBoxMapper.mapToEventOutboxEntity(eventType, rideRequest, riderIdentifier, objectMapper);
-
-        return eventOutboxRepository.save(event);
+        EventOutboxEntity event = buildOutboxEvent(eventType, rideRequest, riderIdentifier);
+        return saveEvent(event);
     }
 
+    private EventOutboxEntity buildOutboxEvent(
+            RideRequestEventType eventType,
+            RideRequestEntity rideRequest,
+            String riderIdentifier
+    ) {
+        return EventOutBoxMapper.mapToEventOutboxEntity(eventType, rideRequest, riderIdentifier, objectMapper);
+    }
 
+    private EventOutboxEntity saveEvent(EventOutboxEntity event) {
+        return eventOutboxRepository.save(event);
+    }
 
     private EventOutboxEntity loadEvent(Long eventId) {
         return eventOutboxRepository.findById(eventId)

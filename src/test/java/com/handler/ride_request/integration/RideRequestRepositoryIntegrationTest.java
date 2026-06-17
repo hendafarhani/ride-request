@@ -1,23 +1,25 @@
 package com.handler.ride_request.integration;
 
 import com.handler.ride_request.entity.EventOutboxEntity;
-import com.handler.ride_request.entity.RideRequestDriverAttemptEntity;
+import com.handler.ride_request.entity.RideRequestDriverOfferEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
-import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.enums.OutboxEventStatus;
 import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.repository.EventOutboxRepository;
-import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
+import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.geo.Point;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +56,13 @@ class RideRequestRepositoryIntegrationTest {
     private RideRequestRepository rideRequestRepository;
 
     @Autowired
-    private RideRequestDriverAttemptRepository attemptRepository;
+    private EntityManager entityManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private RideRequestDriverOfferRepository offerRepository;
 
     @Autowired
     private EventOutboxRepository eventOutboxRepository;
@@ -105,33 +113,52 @@ class RideRequestRepositoryIntegrationTest {
     }
 
     @Test
-    void attemptRepositoryQueriesAttemptsByRideRequest() {
-        RideRequestEntity request = rideRequestRepository.save(rideRequest("ride-attempts"));
-        RiderEntity firstRider = riderRepository.save(rider("attempt-rider-1"));
-        RiderEntity secondRider = riderRepository.save(rider("attempt-rider-2"));
-        RiderEntity thirdRider = riderRepository.save(rider("attempt-rider-3"));
+    void rideRequestRepositoryPersistsTimedOutStatusWithStringEnumMapping() {
+        RideRequestEntity request = rideRequestRepository.save(rideRequest("ride-timed-out"));
+        request.setStatus(StatusEnum.TIMED_OUT);
+        rideRequestRepository.save(request);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(rideRequestRepository.findById(request.getId()).map(RideRequestEntity::getStatus))
+                .as("TIMED_OUT must persist without ordinal check-constraint drift")
+                .hasValue(StatusEnum.TIMED_OUT);
+
+        String storedStatus = jdbcTemplate.queryForObject(
+                "select status from ride_request where id = ?",
+                String.class,
+                request.getId());
+        assertThat(storedStatus).isEqualTo(StatusEnum.TIMED_OUT.name());
+    }
+
+    @Test
+    void offerRepositoryQueriesOffersByRideRequest() {
+        RideRequestEntity request = rideRequestRepository.save(rideRequest("ride-offers"));
+        RiderEntity firstRider = riderRepository.save(rider("offer-rider-1"));
+        RiderEntity secondRider = riderRepository.save(rider("offer-rider-2"));
+        RiderEntity thirdRider = riderRepository.save(rider("offer-rider-3"));
 
         OffsetDateTime baseTime = OffsetDateTime.parse("2026-05-30T10:00:00Z");
-        RideRequestDriverAttemptEntity secondRound = attemptRepository.save(attempt(
-                request, thirdRider, 2, baseTime.plusMinutes(1), AttemptStatus.TIMED_OUT));
-        RideRequestDriverAttemptEntity firstRoundSecond = attemptRepository.save(attempt(
-                request, secondRider, 1, baseTime.plusMinutes(2), AttemptStatus.ACCEPTED));
-        RideRequestDriverAttemptEntity firstRoundFirst = attemptRepository.save(attempt(
-                request, firstRider, 1, baseTime, AttemptStatus.NOTIFIED));
+        RideRequestDriverOfferEntity secondRound = offerRepository.save(offer(
+                request, thirdRider, 2, baseTime.plusMinutes(1), OfferStatus.TIMED_OUT));
+        RideRequestDriverOfferEntity firstRoundSecond = offerRepository.save(offer(
+                request, secondRider, 1, baseTime.plusMinutes(2), OfferStatus.ACCEPTED));
+        RideRequestDriverOfferEntity firstRoundFirst = offerRepository.save(offer(
+                request, firstRider, 1, baseTime, OfferStatus.NOTIFIED));
 
-        assertThat(attemptRepository.findByRideRequestIdOrderByNotificationRoundAscNotifiedAtAsc(request.getId()))
-                .extracting(RideRequestDriverAttemptEntity::getId)
+        assertThat(offerRepository.findByRideRequestIdOrderByNotificationRoundAscNotifiedAtAsc(request.getId()))
+                .extracting(RideRequestDriverOfferEntity::getId)
                 .containsExactly(firstRoundFirst.getId(), firstRoundSecond.getId(), secondRound.getId());
 
-        assertThat(attemptRepository.findByRideRequestIdAndStatus(request.getId(), AttemptStatus.ACCEPTED))
+        assertThat(offerRepository.findByRideRequestIdAndStatus(request.getId(), OfferStatus.ACCEPTED))
                 .singleElement()
-                .extracting(RideRequestDriverAttemptEntity::getId)
+                .extracting(RideRequestDriverOfferEntity::getId)
                 .isEqualTo(firstRoundSecond.getId());
 
-        assertThat(attemptRepository.findByRideRequestIdAndRiderIdentifier(request.getId(), firstRider.getIdentifier()))
+        assertThat(offerRepository.findByRideRequestIdAndRiderIdentifier(request.getId(), firstRider.getIdentifier()))
                 .contains(firstRoundFirst);
 
-        assertThat(attemptRepository.findMaxNotificationRound(request.getId()))
+        assertThat(offerRepository.findMaxNotificationRound(request.getId()))
                 .isEqualTo(2);
     }
 
@@ -189,12 +216,12 @@ class RideRequestRepositoryIntegrationTest {
                 .build();
     }
 
-    private RideRequestDriverAttemptEntity attempt(RideRequestEntity request,
+    private RideRequestDriverOfferEntity offer(RideRequestEntity request,
                                                    RiderEntity rider,
                                                    int notificationRound,
                                                    OffsetDateTime notifiedAt,
-                                                   AttemptStatus status) {
-        return RideRequestDriverAttemptEntity.builder()
+                                                   OfferStatus status) {
+        return RideRequestDriverOfferEntity.builder()
                 .rideRequest(request)
                 .rider(rider)
                 .notificationRound(notificationRound)

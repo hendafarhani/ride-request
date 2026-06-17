@@ -1,19 +1,23 @@
 package com.handler.ride_request.entity;
 
-import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OfferStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.OffsetDateTime;
 
+/**
+ * Persists one rider notification for a ride request together with that rider's response.
+ * The existing "offer" name is kept for schema compatibility.
+ */
 @Builder
 @Getter
 @Setter
 @Entity
-@Table(name = "RIDE_REQUEST_DRIVER_ATTEMPT")
+@Table(name = "RIDE_REQUEST_DRIVER_OFFER")
 @NoArgsConstructor
 @AllArgsConstructor
-public class RideRequestDriverAttemptEntity {
+public class RideRequestDriverOfferEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,7 +39,7 @@ public class RideRequestDriverAttemptEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private AttemptStatus status;
+    private OfferStatus status;
 
     @Column(name = "responded_at")
     private OffsetDateTime respondedAt;

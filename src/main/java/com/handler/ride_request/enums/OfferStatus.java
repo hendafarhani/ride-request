@@ -1,6 +1,9 @@
 package com.handler.ride_request.enums;
 
-public enum AttemptStatus {
+/**
+ * Status of a ride request notification sent to a rider.
+ */
+public enum OfferStatus {
     NOTIFIED,
     ACCEPTED,
     DECLINED,

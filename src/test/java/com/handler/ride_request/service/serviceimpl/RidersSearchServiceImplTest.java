@@ -1,4 +1,4 @@
-package com.handler.ride_request.service.impl;
+package com.handler.ride_request.service.serviceimpl;
 
 import com.handler.ride_request.model.Rider;
 import org.junit.jupiter.api.BeforeEach;

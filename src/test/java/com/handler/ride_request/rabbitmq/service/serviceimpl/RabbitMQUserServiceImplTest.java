@@ -1,4 +1,4 @@
-package com.handler.ride_request.rabbitmq.service.impl;
+package com.handler.ride_request.rabbitmq.service.serviceimpl;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

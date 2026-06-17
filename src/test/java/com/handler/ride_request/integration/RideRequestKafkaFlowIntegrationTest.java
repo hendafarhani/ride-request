@@ -6,14 +6,14 @@ import com.handler.ride_request.entity.EventOutboxEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
-import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.enums.OutboxEventStatus;
 import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
 import com.handler.ride_request.model.Location;
 import com.handler.ride_request.model.RideRequest;
 import com.handler.ride_request.repository.EventOutboxRepository;
-import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
+import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.repository.UserRepository;
@@ -60,7 +60,6 @@ import static org.awaitility.Awaitility.await;
 @Testcontainers(disabledWithoutDocker = true)
 class RideRequestKafkaFlowIntegrationTest {
 
-    private static final String RIDE_REQUESTS_TOPIC = "ride.requests";
     private static final String VEHICLE_LOCATION = "vehicle_location";
 
     @Container
@@ -99,10 +98,13 @@ class RideRequestKafkaFlowIntegrationTest {
     private RideRequestRepository rideRequestRepository;
 
     @Autowired
-    private RideRequestDriverAttemptRepository attemptRepository;
+    private RideRequestDriverOfferRepository offerRepository;
 
     @Autowired
     private EventOutboxRepository eventOutboxRepository;
+
+    @Value("${kafka.topics.ride-requests}")
+    private String rideRequestsTopic;
 
     @DynamicPropertySource
     static void registerContainerProperties(DynamicPropertyRegistry registry) {
@@ -122,7 +124,7 @@ class RideRequestKafkaFlowIntegrationTest {
     @BeforeEach
     void cleanState() {
         eventOutboxRepository.deleteAll();
-        attemptRepository.deleteAll();
+        offerRepository.deleteAll();
         rideRequestRepository.deleteAll();
         riderRepository.deleteAll();
         userRepository.deleteAll();
@@ -130,7 +132,7 @@ class RideRequestKafkaFlowIntegrationTest {
     }
 
     @Test
-    void consumesRideRequestFromKafkaPersistsAttemptsAndPublishesRabbitNotification() throws Exception {
+    void consumesRideRequestFromKafkaPersistsOffersAndPublishesRabbitNotification() throws Exception {
         userRepository.save(UserEntity.builder()
                 .identifier("user-flow")
                 .name("Flow User")
@@ -145,7 +147,7 @@ class RideRequestKafkaFlowIntegrationTest {
                 .location(Location.builder().latitude(48.8566).longitude(2.3522).build())
                 .build();
 
-        kafkaTemplate.send(RIDE_REQUESTS_TOPIC, "user-flow", objectMapper.writeValueAsBytes(rideRequest))
+        kafkaTemplate.send(rideRequestsTopic, "user-flow", objectMapper.writeValueAsBytes(rideRequest))
                 .get(10, TimeUnit.SECONDS);
 
         await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() -> {
@@ -153,8 +155,8 @@ class RideRequestKafkaFlowIntegrationTest {
             assertThat(rideRequests).hasSize(1);
             assertThat(rideRequests.getFirst().getStatus()).isEqualTo(StatusEnum.PENDING);
 
-            assertThat(attemptRepository.findByRideRequestIdAndStatus(
-                    rideRequests.getFirst().getId(), AttemptStatus.NOTIFIED)).hasSize(2);
+            assertThat(offerRepository.findByRideRequestIdAndStatus(
+                    rideRequests.getFirst().getId(), OfferStatus.NOTIFIED)).hasSize(2);
 
             assertThat(eventOutboxRepository.findByRideRequestIdAndStatusOrderByCreatedAtAsc(
                     rideRequests.getFirst().getId(), OutboxEventStatus.PENDING))

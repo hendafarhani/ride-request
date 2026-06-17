@@ -1,11 +1,11 @@
-package com.handler.ride_request.service.impl;
+package com.handler.ride_request.service.serviceimpl;
 
-import com.handler.ride_request.entity.RideRequestDriverAttemptEntity;
+import com.handler.ride_request.entity.RideRequestDriverOfferEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
-import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.model.Rider;
-import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
+import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,25 +23,25 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class RideRequestDriverAttemptServiceImplTest {
+class RideRequestDriverOfferServiceImplTest {
 
     @Mock
-    private RideRequestDriverAttemptRepository attemptRepository;
+    private RideRequestDriverOfferRepository offerRepository;
 
     @Mock
     private RiderRepository riderRepository;
 
     @InjectMocks
-    private RideRequestDriverAttemptServiceImpl service;
+    private RideRequestDriverOfferServiceImpl service;
 
     @Test
     void shouldReturnEmptyWhenRideRequestIsNull() {
         List<Rider> riders = List.of(buildRider("r1"));
 
-        List<Rider> result = service.createAttemptsForRound(null, riders, 1);
+        List<Rider> result = service.createOffersForRound(null, riders, 1);
 
         assertThat(result).isEmpty();
-        verifyNoInteractions(riderRepository, attemptRepository);
+        verifyNoInteractions(riderRepository, offerRepository);
     }
 
     @Test
@@ -50,15 +50,15 @@ class RideRequestDriverAttemptServiceImplTest {
         List<Rider> riders = List.of(buildRider("missing"));
         when(riderRepository.findByIdentifierIn(Set.of("missing"))).thenReturn(List.of());
 
-        List<Rider> result = service.createAttemptsForRound(rideRequest, riders, 2);
+        List<Rider> result = service.createOffersForRound(rideRequest, riders, 2);
 
         assertThat(result).isEmpty();
         verify(riderRepository).findByIdentifierIn(Set.of("missing"));
-        verifyNoInteractions(attemptRepository);
+        verifyNoInteractions(offerRepository);
     }
 
     @Test
-    void shouldCreateAttemptsOnlyForPersistedRiders() {
+    void shouldCreateOffersOnlyForPersistedRiders() {
         RideRequestEntity rideRequest = buildRideRequest(7L);
         Rider keptRider = buildRider("persisted");
         Rider skippedRider = buildRider("missing");
@@ -68,62 +68,62 @@ class RideRequestDriverAttemptServiceImplTest {
                 .thenReturn(List.of(persistedEntity));
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<RideRequestDriverAttemptEntity>> attemptsCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<RideRequestDriverOfferEntity>> offersCaptor = ArgumentCaptor.forClass(List.class);
 
-        List<Rider> result = service.createAttemptsForRound(rideRequest, riders, 3);
+        List<Rider> result = service.createOffersForRound(rideRequest, riders, 3);
 
         assertThat(result).containsExactly(keptRider);
         verify(riderRepository).findByIdentifierIn(Set.of("persisted", "missing"));
-        verify(attemptRepository).saveAll(attemptsCaptor.capture());
+        verify(offerRepository).saveAll(offersCaptor.capture());
 
-        List<RideRequestDriverAttemptEntity> savedAttempts = attemptsCaptor.getValue();
-        assertThat(savedAttempts).hasSize(1);
-        RideRequestDriverAttemptEntity attempt = savedAttempts.get(0);
-        assertThat(attempt.getRideRequest()).isEqualTo(rideRequest);
-        assertThat(attempt.getRider()).isEqualTo(persistedEntity);
-        assertThat(attempt.getNotificationRound()).isEqualTo(3);
-        assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.NOTIFIED);
-        assertThat(attempt.getNotifiedAt()).isNotNull();
+        List<RideRequestDriverOfferEntity> savedOffers = offersCaptor.getValue();
+        assertThat(savedOffers).hasSize(1);
+        RideRequestDriverOfferEntity offer = savedOffers.get(0);
+        assertThat(offer.getRideRequest()).isEqualTo(rideRequest);
+        assertThat(offer.getRider()).isEqualTo(persistedEntity);
+        assertThat(offer.getNotificationRound()).isEqualTo(3);
+        assertThat(offer.getStatus()).isEqualTo(OfferStatus.NOTIFIED);
+        assertThat(offer.getNotifiedAt()).isNotNull();
     }
 
     @Test
-    void shouldMarkNotifiedAttemptAsDeclined() {
-        RideRequestDriverAttemptEntity attempt = RideRequestDriverAttemptEntity.builder()
-                .status(AttemptStatus.NOTIFIED)
+    void shouldMarkNotifiedOfferAsDeclined() {
+        RideRequestDriverOfferEntity offer = RideRequestDriverOfferEntity.builder()
+                .status(OfferStatus.NOTIFIED)
                 .build();
-        when(attemptRepository.findByRideRequestIdAndRiderIdentifier(7L, "rider-1"))
-                .thenReturn(Optional.of(attempt));
+        when(offerRepository.findByRideRequestIdAndRiderIdentifier(7L, "rider-1"))
+                .thenReturn(Optional.of(offer));
 
         service.markDeclined(7L, "rider-1", java.time.OffsetDateTime.now());
 
-        assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.DECLINED);
-        assertThat(attempt.getRespondedAt()).isNotNull();
-        verify(attemptRepository).save(attempt);
+        assertThat(offer.getStatus()).isEqualTo(OfferStatus.DECLINED);
+        assertThat(offer.getRespondedAt()).isNotNull();
+        verify(offerRepository).save(offer);
     }
 
     @Test
-    void shouldRejectDeclineForUnknownAttempt() {
-        when(attemptRepository.findByRideRequestIdAndRiderIdentifier(7L, "missing"))
+    void shouldRejectDeclineForUnknownOffer() {
+        when(offerRepository.findByRideRequestIdAndRiderIdentifier(7L, "missing"))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.markDeclined(7L, "missing", java.time.OffsetDateTime.now()))
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(attemptRepository, never()).save(any());
+        verify(offerRepository, never()).save(any());
     }
 
     @Test
-    void shouldRejectDeclineWhenAttemptIsNotNotified() {
-        RideRequestDriverAttemptEntity attempt = RideRequestDriverAttemptEntity.builder()
-                .status(AttemptStatus.TIMED_OUT)
+    void shouldRejectDeclineWhenOfferIsNotNotified() {
+        RideRequestDriverOfferEntity offer = RideRequestDriverOfferEntity.builder()
+                .status(OfferStatus.TIMED_OUT)
                 .build();
-        when(attemptRepository.findByRideRequestIdAndRiderIdentifier(7L, "rider-1"))
-                .thenReturn(Optional.of(attempt));
+        when(offerRepository.findByRideRequestIdAndRiderIdentifier(7L, "rider-1"))
+                .thenReturn(Optional.of(offer));
 
         assertThatThrownBy(() -> service.markDeclined(7L, "rider-1", java.time.OffsetDateTime.now()))
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(attemptRepository, never()).save(any());
+        verify(offerRepository, never()).save(any());
     }
 
     private RideRequestEntity buildRideRequest(long id) {

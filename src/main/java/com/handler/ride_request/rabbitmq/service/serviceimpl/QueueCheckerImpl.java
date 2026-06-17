@@ -1,4 +1,4 @@
-package com.handler.ride_request.rabbitmq.service.impl;
+package com.handler.ride_request.rabbitmq.service.serviceimpl;
 
 import com.handler.ride_request.rabbitmq.service.QueueChecker;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -18,7 +18,6 @@ public class QueueCheckerImpl implements QueueChecker {
 
     @Override
     public boolean doesQueueExist(String queueName) {
-            // Check if the queue exists
-            return Optional.ofNullable(rabbitAdmin.getQueueProperties(queueName)).isPresent();
+        return Optional.ofNullable(rabbitAdmin.getQueueProperties(queueName)).isPresent();
     }
 }

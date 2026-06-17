@@ -1,4 +1,4 @@
-package com.handler.ride_request.service.impl;
+package com.handler.ride_request.service.serviceimpl;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
@@ -12,6 +12,7 @@ import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.UserRepository;
 import com.handler.ride_request.scheduler.RiderSearchScheduler;
 import com.handler.ride_request.service.EventOutboxService;
+import com.handler.ride_request.service.RideRequestDriverOfferService;
 import com.handler.ride_request.service.RidersSearchService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,7 +48,7 @@ class ProcessRequestServiceImplTest {
     private RiderSearchScheduler riderSearchScheduler;
 
     @Mock
-    private RideRequestDriverAttemptServiceImpl attemptService;
+    private RideRequestDriverOfferService offerService;
 
     @Mock
     private EventOutboxService eventOutboxService;
@@ -82,7 +83,7 @@ class ProcessRequestServiceImplTest {
         service.processRideRequest(null);
 
         verifyNoInteractions(userRepository, rideRequestRepository, ridersSearchService,
-                attemptService, notificationService, riderSearchScheduler);
+                offerService, notificationService, riderSearchScheduler);
     }
 
     @Test
@@ -94,7 +95,7 @@ class ProcessRequestServiceImplTest {
 
         verify(userRepository).findByIdentifier("user-123");
         verifyNoInteractions(rideRequestRepository, ridersSearchService,
-                attemptService, notificationService, riderSearchScheduler);
+                offerService, notificationService, riderSearchScheduler);
     }
 
     @Test
@@ -109,21 +110,21 @@ class ProcessRequestServiceImplTest {
         verify(ridersSearchService).findNearestVehicles(persistedRequest.getLocation(), java.util.Collections.emptySet());
         verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_CREATED, persistedRequest);
         verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_STATUS_PENDING, persistedRequest);
-        verifyNoInteractions(attemptService, notificationService, riderSearchScheduler);
+        verifyNoInteractions(offerService, notificationService, riderSearchScheduler);
     }
 
     @Test
-    void shouldSkipNotificationWhenNoAttemptsPersisted() {
+    void shouldSkipNotificationWhenNoOffersPersisted() {
         when(userRepository.findByIdentifier("user-123")).thenReturn(Optional.of(user));
         when(rideRequestRepository.save(any(RideRequestEntity.class))).thenReturn(persistedRequest);
         List<Rider> nearby = List.of(Rider.builder().identifier("candidate-1").build());
         when(ridersSearchService.findNearestVehicles(persistedRequest.getLocation(), java.util.Collections.emptySet()))
                 .thenReturn(nearby);
-        when(attemptService.createAttemptsForRound(persistedRequest, nearby, 1)).thenReturn(List.of());
+        when(offerService.createOffersForRound(persistedRequest, nearby, 1)).thenReturn(List.of());
 
         service.processRideRequest(rideRequest);
 
-        verify(attemptService).createAttemptsForRound(persistedRequest, nearby, 1);
+        verify(offerService).createOffersForRound(persistedRequest, nearby, 1);
         verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_CREATED, persistedRequest);
         verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_STATUS_PENDING, persistedRequest);
         verify(eventOutboxService, never()).recordRiderEvent(any(), any(), any());
@@ -131,13 +132,13 @@ class ProcessRequestServiceImplTest {
     }
 
     @Test
-    void shouldNotifyRidersAndScheduleFollowUpWhenAttemptsExist() {
+    void shouldNotifyRidersAndScheduleFollowUpWhenOffersExist() {
         List<Rider> nearby = List.of(Rider.builder().identifier("persisted-1").build());
         when(userRepository.findByIdentifier("user-123")).thenReturn(Optional.of(user));
         when(rideRequestRepository.save(any(RideRequestEntity.class))).thenReturn(persistedRequest);
         when(ridersSearchService.findNearestVehicles(persistedRequest.getLocation(), java.util.Collections.emptySet()))
                 .thenReturn(nearby);
-        when(attemptService.createAttemptsForRound(persistedRequest, nearby, 1)).thenReturn(nearby);
+        when(offerService.createOffersForRound(persistedRequest, nearby, 1)).thenReturn(nearby);
 
         service.processRideRequest(rideRequest);
 

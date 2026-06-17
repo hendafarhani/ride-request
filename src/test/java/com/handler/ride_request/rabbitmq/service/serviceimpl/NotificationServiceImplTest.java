@@ -1,8 +1,8 @@
-package com.handler.ride_request.rabbitmq.service.impl;
+package com.handler.ride_request.rabbitmq.service.serviceimpl;
 
-import com.handler.ride_request.entity.RideRequestDriverAttemptEntity;
+import com.handler.ride_request.entity.RideRequestDriverOfferEntity;
 import com.handler.ride_request.entity.RiderEntity;
-import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
@@ -12,7 +12,7 @@ import com.handler.ride_request.rabbitmq.mapper.RideMapper;
 import com.handler.ride_request.rabbitmq.model.RideNotification;
 import com.handler.ride_request.rabbitmq.service.QueueChecker;
 import com.handler.ride_request.rabbitmq.service.RabbitMQUserService;
-import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
+import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.service.EventOutboxService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class NotificationServiceImplTest {
     private RabbitMQUserService rabbitMQUserService;
 
     @Mock
-    private RideRequestDriverAttemptRepository attemptRepository;
+    private RideRequestDriverOfferRepository offerRepository;
 
     @Mock
     private EventOutboxService eventOutboxService;
@@ -119,7 +119,7 @@ class NotificationServiceImplTest {
     void notifyRideAccepted_returnsImmediatelyWhenRideRequestIsNull() {
         notificationService.notifyRideAccepted(null, "accepted-rider");
 
-        verifyNoInteractions(queueChecker, rabbitMQUserService, rabbitTemplate, attemptRepository);
+        verifyNoInteractions(queueChecker, rabbitMQUserService, rabbitTemplate, offerRepository);
     }
 
     @Test
@@ -144,7 +144,7 @@ class NotificationServiceImplTest {
     void notifyRideTimedOut_returnsImmediatelyWhenRideRequestIsNull() {
         notificationService.notifyRideTimedOut(null);
 
-        verifyNoInteractions(queueChecker, rabbitMQUserService, rabbitTemplate, attemptRepository);
+        verifyNoInteractions(queueChecker, rabbitMQUserService, rabbitTemplate, offerRepository);
     }
 
     @Test
@@ -163,7 +163,7 @@ class NotificationServiceImplTest {
         verify(queueChecker).doesQueueExist("queue.user.requester-1");
         verify(rabbitMQUserService).createUserQueue("requester-1");
         verify(rabbitTemplate).convertAndSend("user-exchange", "requester-1", timedOutNotification);
-        verifyNoInteractions(attemptRepository);
+        verifyNoInteractions(offerRepository);
     }
 
     @Test
@@ -172,12 +172,12 @@ class NotificationServiceImplTest {
         when(queueChecker.doesQueueExist(anyString())).thenReturn(true);
         RideNotification acceptedNotification = RideNotification.builder().status(StatusEnum.ACCEPTED).build();
         RideNotification canceledNotification = RideNotification.builder().status(StatusEnum.CANCELED).build();
-        when(attemptRepository.findByRideRequestIdAndStatus(rideRequest.getId(), AttemptStatus.CANCELED))
+        when(offerRepository.findByRideRequestIdAndStatus(rideRequest.getId(), OfferStatus.CANCELED))
                 .thenReturn(List.of(
-                        attempt("rider-A"),
-                        attempt("rider-accepted"),
-                        attempt("rider-A"),
-                        attempt("rider-B")
+                        offer("rider-A"),
+                        offer("rider-accepted"),
+                        offer("rider-A"),
+                        offer("rider-B")
                 ));
 
         try (MockedStatic<RideMapper> mapper = mockStatic(RideMapper.class)) {
@@ -202,10 +202,10 @@ class NotificationServiceImplTest {
         when(userExchange.getName()).thenReturn("user-exchange");
     }
 
-    private RideRequestDriverAttemptEntity attempt(String riderIdentifier) {
-        return RideRequestDriverAttemptEntity.builder()
+    private RideRequestDriverOfferEntity offer(String riderIdentifier) {
+        return RideRequestDriverOfferEntity.builder()
                 .rider(RiderEntity.builder().identifier(riderIdentifier).build())
-                .status(AttemptStatus.CANCELED)
+                .status(OfferStatus.CANCELED)
                 .build();
     }
 }

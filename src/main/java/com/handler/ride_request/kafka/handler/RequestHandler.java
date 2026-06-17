@@ -15,9 +15,9 @@ public class RequestHandler {
     private final ProcessRequestService processService;
 
     @KafkaListener(
-            id = "rideListener",
-            topics = "ride.requests",
-            groupId = "driver.matching.group",
+            id = "${kafka.listeners.ride-request.id}",
+            topics = "${kafka.topics.ride-requests}",
+            groupId = "${kafka.consumers.ride-request.group-id}",
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void listen(RideRequest rideRequest){
