@@ -52,8 +52,7 @@ public class NotificationServiceImpl implements NotificationService {
             return;
         }
 
-        notifyRequesterAboutAcceptedRide(rideRequestEntity, acceptedRiderIdentifier);
-        notifyCanceledRidersAboutAcceptedRide(rideRequestEntity, acceptedRiderIdentifier);
+        notifyParticipantsAboutAcceptedRide(rideRequestEntity, acceptedRiderIdentifier);
     }
 
     @Override
@@ -66,15 +65,23 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private boolean isRideRequestMissing(RideRequestEntity rideRequestEntity, String notificationType) {
-        if (Objects.nonNull(rideRequestEntity)) {
-            return false;
+        if (Objects.isNull(rideRequestEntity)) {
+            log.warn("Cannot notify {} because rideRequestEntity is null", notificationType);
+            return true;
         }
-        log.warn("Cannot notify {} because rideRequestEntity is null", notificationType);
-        return true;
+        return false;
     }
 
     private void notifyRidersAboutPendingRequest(List<Rider> riders, RideRequestEntity rideRequestEntity) {
         riders.forEach(rider -> notifyRiderAboutPendingRequest(rider, rideRequestEntity));
+    }
+
+    private void notifyParticipantsAboutAcceptedRide(
+            RideRequestEntity rideRequestEntity,
+            String acceptedRiderIdentifier
+    ) {
+        notifyRequesterAboutAcceptedRide(rideRequestEntity, acceptedRiderIdentifier);
+        notifyOtherRidersAboutAcceptedRide(rideRequestEntity, acceptedRiderIdentifier);
     }
 
     private void notifyRiderAboutPendingRequest(Rider rider, RideRequestEntity rideRequestEntity) {
@@ -103,57 +110,67 @@ public class NotificationServiceImpl implements NotificationService {
                 requesterIdentifier, rideRequestEntity.getIdentifier());
     }
 
-    private void notifyCanceledRidersAboutAcceptedRide(
+    private void notifyOtherRidersAboutAcceptedRide(
             RideRequestEntity rideRequestEntity,
             String acceptedRiderIdentifier) {
-        List<String> canceledRiderIdentifiers = findCanceledRidersExceptAccepted(
+        List<String> riderIdentifiersToNotify = findRiderIdentifiersToNotifyAboutAcceptedRide(
                 rideRequestEntity,
                 acceptedRiderIdentifier);
 
-        if (canceledRiderIdentifiers.isEmpty()) {
+        if (riderIdentifiersToNotify.isEmpty()) {
             log.info("No additional riders to notify for ride {}", rideRequestEntity.getIdentifier());
             return;
         }
 
-        canceledRiderIdentifiers.forEach(riderIdentifier ->
-                notifyCanceledRider(rideRequestEntity, acceptedRiderIdentifier, riderIdentifier));
+        riderIdentifiersToNotify.forEach(riderIdentifier ->
+                notifyRiderAboutAcceptedRide(rideRequestEntity, acceptedRiderIdentifier, riderIdentifier));
         log.info("Notified {} riders that ride {} was accepted",
-                canceledRiderIdentifiers.size(), rideRequestEntity.getIdentifier());
+                riderIdentifiersToNotify.size(), rideRequestEntity.getIdentifier());
     }
 
-    private List<String> findCanceledRidersExceptAccepted(
+    private List<String> findRiderIdentifiersToNotifyAboutAcceptedRide(
             RideRequestEntity rideRequestEntity,
             String acceptedRiderIdentifier
     ) {
-        return findCanceledRiderIdentifiers(rideRequestEntity).stream()
+        return findCanceledRiderIdentifiersForRide(rideRequestEntity)
+                .stream()
                 .filter(candidate -> !Objects.equals(candidate, acceptedRiderIdentifier))
                 .distinct()
                 .toList();
     }
 
-    private List<String> findCanceledRiderIdentifiers(RideRequestEntity rideRequestEntity) {
-        return offerRepository.findByRideRequestIdAndStatus(rideRequestEntity.getId(), OfferStatus.CANCELED).stream()
+    private List<String> findCanceledRiderIdentifiersForRide(RideRequestEntity rideRequestEntity) {
+        return offerRepository.findByRideRequestIdAndStatus(rideRequestEntity.getId(), OfferStatus.CANCELED)
+                .stream()
                 .map(offer -> offer.getRider().getIdentifier())
                 .toList();
     }
 
-    private void notifyCanceledRider(
+    private void notifyRiderAboutAcceptedRide(
             RideRequestEntity rideRequestEntity,
             String acceptedRiderIdentifier,
             String riderIdentifier
     ) {
-        recordRiderCanceledEvent(rideRequestEntity, riderIdentifier);
+        recordRideCanceledForRider(rideRequestEntity, riderIdentifier);
+        sendAcceptedRideCancellationNotification(rideRequestEntity, acceptedRiderIdentifier, riderIdentifier);
+    }
+
+    private void recordRideCanceledForRider(RideRequestEntity rideRequestEntity, String riderIdentifier) {
+        eventOutboxService.recordRiderEvent(RideRequestEventType.RIDER_CANCELED, rideRequestEntity, riderIdentifier);
+    }
+
+    private void sendAcceptedRideCancellationNotification(
+            RideRequestEntity rideRequestEntity,
+            String acceptedRiderIdentifier,
+            String riderIdentifier
+    ) {
         sendNotificationToUser(
                 riderIdentifier,
                 RideMapper.mapToRideNotification(acceptedRiderIdentifier, rideRequestEntity, StatusEnum.CANCELED));
     }
 
-    private void recordRiderCanceledEvent(RideRequestEntity rideRequestEntity, String riderIdentifier) {
-        eventOutboxService.recordRiderEvent(RideRequestEventType.RIDER_CANCELED, rideRequestEntity, riderIdentifier);
-    }
-
     private void sendNotificationToUser(String userIdentifier, RideNotification rideNotification) {
-        ensureUserQueueExists(userIdentifier);
+        ensureUserQueueExistsElseCreateIt(userIdentifier);
         publishNotification(userIdentifier, rideNotification);
     }
 
@@ -161,7 +178,7 @@ public class NotificationServiceImpl implements NotificationService {
         return Objects.isNull(riders) || riders.isEmpty();
     }
 
-    private void ensureUserQueueExists(String userIdentifier) {
+    private void ensureUserQueueExistsElseCreateIt(String userIdentifier) {
         if (!queueChecker.doesQueueExist(queueName(userIdentifier))) {
             rabbitMQUserService.createUserQueue(userIdentifier);
         }

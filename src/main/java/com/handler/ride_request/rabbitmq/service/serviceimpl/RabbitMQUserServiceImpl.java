@@ -18,19 +18,25 @@ public class RabbitMQUserServiceImpl implements RabbitMQUserService {
 
     @Override
     public void createUserQueue(String userId) {
-        Queue userQueue = declareUserQueue(userId);
-        bindQueueToUserExchange(userQueue, userId);
+        Queue userQueue = createQueueDefinition(userId);
+        registerQueue(userQueue);
+        registerBinding(userQueue, userId);
     }
 
-    private Queue declareUserQueue(String userId) {
-        Queue userQueue = new Queue(queueName(userId), true);
+    private Queue createQueueDefinition(String userId) {
+        return new Queue(queueName(userId), true);
+    }
+
+    private void registerQueue(Queue userQueue) {
         amqpAdmin.declareQueue(userQueue);
-        return userQueue;
     }
 
-    private void bindQueueToUserExchange(Queue userQueue, String userId) {
-        Binding binding = BindingBuilder.bind(userQueue).to(userExchange).with(userId);
-        amqpAdmin.declareBinding(binding);
+    private void registerBinding(Queue userQueue, String userId) {
+        amqpAdmin.declareBinding(createUserBinding(userQueue, userId));
+    }
+
+    private Binding createUserBinding(Queue userQueue, String userId) {
+        return BindingBuilder.bind(userQueue).to(userExchange).with(userId);
     }
 
     private String queueName(String userId) {
