@@ -4,7 +4,7 @@ import com.handler.ride_request.entity.RideRequestDriverOfferEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.enums.OfferStatus;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import org.junit.jupiter.api.Test;
@@ -48,12 +48,12 @@ class RideRequestDriverOfferServiceImplTest {
     void shouldReturnEmptyWhenNoPersistedRidersFound() {
         RideRequestEntity rideRequest = buildRideRequest(5L);
         List<Rider> riders = List.of(buildRider("missing"));
-        when(riderRepository.findByIdentifierIn(Set.of("missing"))).thenReturn(List.of());
+        when(riderRepository.findByDriverIdentifierIn(Set.of("missing"))).thenReturn(List.of());
 
         List<Rider> result = service.createOffersForRound(rideRequest, riders, 2);
 
         assertThat(result).isEmpty();
-        verify(riderRepository).findByIdentifierIn(Set.of("missing"));
+        verify(riderRepository).findByDriverIdentifierIn(Set.of("missing"));
         verifyNoInteractions(offerRepository);
     }
 
@@ -64,7 +64,7 @@ class RideRequestDriverOfferServiceImplTest {
         Rider skippedRider = buildRider("missing");
         List<Rider> riders = List.of(keptRider, skippedRider);
         RiderEntity persistedEntity = buildRiderEntity("persisted");
-        when(riderRepository.findByIdentifierIn(Set.of("persisted", "missing")))
+        when(riderRepository.findByDriverIdentifierIn(Set.of("persisted", "missing")))
                 .thenReturn(List.of(persistedEntity));
 
         @SuppressWarnings("unchecked")
@@ -73,7 +73,7 @@ class RideRequestDriverOfferServiceImplTest {
         List<Rider> result = service.createOffersForRound(rideRequest, riders, 3);
 
         assertThat(result).containsExactly(keptRider);
-        verify(riderRepository).findByIdentifierIn(Set.of("persisted", "missing"));
+        verify(riderRepository).findByDriverIdentifierIn(Set.of("persisted", "missing"));
         verify(offerRepository).saveAll(offersCaptor.capture());
 
         List<RideRequestDriverOfferEntity> savedOffers = offersCaptor.getValue();
@@ -91,7 +91,7 @@ class RideRequestDriverOfferServiceImplTest {
         RideRequestDriverOfferEntity offer = RideRequestDriverOfferEntity.builder()
                 .status(OfferStatus.NOTIFIED)
                 .build();
-        when(offerRepository.findByRideRequestIdAndRiderIdentifier(7L, "rider-1"))
+        when(offerRepository.findByRideRequestIdAndDriverIdentifier(7L, "rider-1"))
                 .thenReturn(Optional.of(offer));
 
         service.markDeclined(7L, "rider-1", java.time.OffsetDateTime.now());
@@ -103,9 +103,6 @@ class RideRequestDriverOfferServiceImplTest {
 
     @Test
     void shouldRejectDeclineForUnknownOffer() {
-        when(offerRepository.findByRideRequestIdAndRiderIdentifier(7L, "missing"))
-                .thenReturn(Optional.empty());
-
         assertThatThrownBy(() -> service.markDeclined(7L, "missing", java.time.OffsetDateTime.now()))
                 .isInstanceOf(IllegalStateException.class);
 
@@ -117,7 +114,7 @@ class RideRequestDriverOfferServiceImplTest {
         RideRequestDriverOfferEntity offer = RideRequestDriverOfferEntity.builder()
                 .status(OfferStatus.TIMED_OUT)
                 .build();
-        when(offerRepository.findByRideRequestIdAndRiderIdentifier(7L, "rider-1"))
+        when(offerRepository.findByRideRequestIdAndDriverIdentifier(7L, "rider-1"))
                 .thenReturn(Optional.of(offer));
 
         assertThatThrownBy(() -> service.markDeclined(7L, "rider-1", java.time.OffsetDateTime.now()))
@@ -131,10 +128,16 @@ class RideRequestDriverOfferServiceImplTest {
     }
 
     private Rider buildRider(String identifier) {
-        return Rider.builder().identifier(identifier).build();
+        return Rider.builder()
+                .identifier(identifier)
+                .driverIdentifier(identifier)
+                .build();
     }
 
     private RiderEntity buildRiderEntity(String identifier) {
-        return RiderEntity.builder().identifier(identifier).build();
+        return RiderEntity.builder()
+                .identifier(identifier)
+                .driverIdentifier(identifier)
+                .build();
     }
 }

@@ -36,10 +36,19 @@ public interface RideRequestDriverOfferRepository extends JpaRepository<RideRequ
             select offer
             from RideRequestDriverOfferEntity offer
             where offer.rideRequest.id = :rideRequestId
+              and coalesce(offer.rider.driverIdentifier, offer.rider.identifier) = :driverIdentifier
+            """)
+    Optional<RideRequestDriverOfferEntity> findByRideRequestIdAndDriverIdentifier(@Param("rideRequestId") Long rideRequestId,
+                                                                                  @Param("driverIdentifier") String driverIdentifier);
+
+    @Query("""
+            select offer
+            from RideRequestDriverOfferEntity offer
+            where offer.rideRequest.id = :rideRequestId
               and offer.rider.identifier = :riderIdentifier
             """)
     Optional<RideRequestDriverOfferEntity> findByRideRequestIdAndRiderIdentifier(@Param("rideRequestId") Long rideRequestId,
-                                                                                   @Param("riderIdentifier") String riderIdentifier);
+                                                                                 @Param("riderIdentifier") String riderIdentifier);
 
     @Query("""
             select max(offer.notificationRound)

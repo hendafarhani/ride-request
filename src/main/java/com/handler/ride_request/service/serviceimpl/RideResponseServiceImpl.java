@@ -81,7 +81,7 @@ public class RideResponseServiceImpl implements RideResponseService {
     }
 
     private RiderEntity loadRider(String riderIdentifier) {
-        return riderRepository.findByIdentifier(riderIdentifier)
+        return riderRepository.findByDriverIdentifier(riderIdentifier)
                 .orElseThrow(() ->
                         new EntityNotFoundException("Rider not found for identifier " + riderIdentifier));
     }
@@ -93,8 +93,8 @@ public class RideResponseServiceImpl implements RideResponseService {
     }
 
     private void registerAcceptedOffer(RideRequestEntity rideRequest, RiderEntity rider, OffsetDateTime acceptedAt) {
-        offerService.markAccepted(rideRequest.getId(), rider.getIdentifier(), acceptedAt);
-        offerService.markOtherOpenOffersAsCanceled(rideRequest.getId(), rider.getIdentifier(), acceptedAt);
+        offerService.markAccepted(rideRequest.getId(), driverIdentifierOf(rider), acceptedAt);
+        offerService.markOtherOpenOffersAsCanceled(rideRequest.getId(), driverIdentifierOf(rider), acceptedAt);
     }
 
     private void updateRideRequest(RideRequestEntity rideRequest, RiderEntity rider, OffsetDateTime acceptedAt) {
@@ -103,7 +103,11 @@ public class RideResponseServiceImpl implements RideResponseService {
     }
 
     private void notifyRequester(RideRequestEntity rideRequest, RiderEntity rider) {
-        log.info("Ride request {} accepted by rider {}", rideRequest.getIdentifier(), rider.getIdentifier());
-        notificationService.notifyRideAccepted(rideRequest, rider.getIdentifier());
+        log.info("Ride request {} accepted by rider {}", rideRequest.getIdentifier(), driverIdentifierOf(rider));
+        notificationService.notifyRideAccepted(rideRequest, driverIdentifierOf(rider));
+    }
+
+    private String driverIdentifierOf(RiderEntity rider) {
+        return rider.getDriverIdentifier() != null ? rider.getDriverIdentifier() : rider.getIdentifier();
     }
 }

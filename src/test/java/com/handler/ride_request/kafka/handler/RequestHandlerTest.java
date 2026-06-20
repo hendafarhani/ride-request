@@ -1,7 +1,7 @@
 package com.handler.ride_request.kafka.handler;
 
 import com.handler.ride_request.kafka.helper.RequestHandlerTestHelper;
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.RideRequest;
 import com.handler.ride_request.service.ProcessRequestService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

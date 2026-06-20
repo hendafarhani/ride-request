@@ -66,7 +66,7 @@ public class EventOutboxServiceImpl implements EventOutboxService {
     @Override
     @Transactional(readOnly = true)
     public List<EventOutboxEntity> findPendingEventsByRiderId(String riderId) {
-        return eventOutboxRepository.findByRiderIdAndStatusOrderByCreatedAtAsc(riderId, OutboxEventStatus.PENDING);
+        return eventOutboxRepository.findByDriverIdentifierAndStatusOrderByCreatedAtAsc(riderId, OutboxEventStatus.PENDING);
     }
 
     @Override

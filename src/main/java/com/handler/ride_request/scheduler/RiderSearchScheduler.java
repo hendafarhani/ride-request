@@ -3,7 +3,7 @@ package com.handler.ride_request.scheduler;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.mapper.RideRequestMapper;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.service.EventOutboxService;

@@ -1,7 +1,7 @@
 package com.handler.ride_request.kafka.helper;
 
-import com.handler.ride_request.model.Location;
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.Location;
+import com.handler.ride_request.domain.RideRequest;
 
 public class RequestHandlerTestHelper {
 

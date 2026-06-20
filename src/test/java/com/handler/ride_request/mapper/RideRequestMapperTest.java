@@ -3,8 +3,8 @@ package com.handler.ride_request.mapper;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.enums.StatusEnum;
-import com.handler.ride_request.model.Location;
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.Location;
+import com.handler.ride_request.domain.RideRequest;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;

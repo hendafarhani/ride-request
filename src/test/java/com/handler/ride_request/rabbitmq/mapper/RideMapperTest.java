@@ -3,7 +3,7 @@ package com.handler.ride_request.rabbitmq.mapper;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.enums.StatusEnum;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.rabbitmq.model.RideNotification;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.geo.Point;

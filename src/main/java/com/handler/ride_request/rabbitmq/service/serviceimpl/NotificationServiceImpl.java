@@ -3,7 +3,7 @@ package com.handler.ride_request.rabbitmq.service.serviceimpl;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.enums.RideRequestEventType;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.rabbitmq.mapper.RideMapper;
 import com.handler.ride_request.rabbitmq.model.RideNotification;
 import com.handler.ride_request.rabbitmq.service.NotificationService;

@@ -1,8 +1,8 @@
 package com.handler.ride_request.kafka.serialization;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.handler.ride_request.model.Location;
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.Location;
+import com.handler.ride_request.domain.RideRequest;
 import org.apache.kafka.common.errors.SerializationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

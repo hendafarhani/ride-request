@@ -1,4 +1,4 @@
-package com.handler.ride_request.model;
+package com.handler.ride_request.domain;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

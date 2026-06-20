@@ -1,6 +1,6 @@
 package com.handler.ride_request.service.serviceimpl;
 
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

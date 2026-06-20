@@ -1,7 +1,7 @@
 package com.handler.ride_request.service;
 
 import com.handler.ride_request.entity.RideRequestEntity;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 
 import java.time.OffsetDateTime;
 import java.util.List;

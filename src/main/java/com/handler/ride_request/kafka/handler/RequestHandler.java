@@ -1,6 +1,6 @@
 package com.handler.ride_request.kafka.handler;
 
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.RideRequest;
 import com.handler.ride_request.service.ProcessRequestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

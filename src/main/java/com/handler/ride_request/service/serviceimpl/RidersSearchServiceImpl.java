@@ -1,7 +1,7 @@
 package com.handler.ride_request.service.serviceimpl;
 
 import com.handler.ride_request.mapper.RiderMapper;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.service.RidersSearchService;
 import io.netty.util.internal.StringUtil;
 import lombok.RequiredArgsConstructor;

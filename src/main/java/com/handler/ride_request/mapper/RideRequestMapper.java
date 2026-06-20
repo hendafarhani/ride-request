@@ -5,7 +5,7 @@ import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.enums.OfferStatus;
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.RideRequest;
 import com.handler.ride_request.enums.StatusEnum;
 import org.springframework.data.geo.Point;
 
@@ -46,7 +46,12 @@ public class RideRequestMapper {
             RiderEntity rider,
             OffsetDateTime acceptedAt) {
         rideRequest.setStatus(StatusEnum.ACCEPTED);
-        rideRequest.setAcceptedRiderIdentifier(rider.getIdentifier());
+        String driverIdentifier = rider.getDriverIdentifier() != null ? rider.getDriverIdentifier() : rider.getIdentifier();
+        rideRequest.setAcceptedDriverIdentifier(driverIdentifier);
+        rideRequest.setAcceptedDriverDisplayId(
+                rider.getDriverDisplayId() != null
+                        ? rider.getDriverDisplayId()
+                        : "DRV-" + driverIdentifier.toUpperCase().replaceAll("[^A-Z0-9]+", "-"));
         rideRequest.setAcceptedAt(acceptedAt);
     }
 

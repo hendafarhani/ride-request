@@ -43,7 +43,7 @@ public class EventOutboxEntity {
     private String requesterId;
 
     @Column(name = "rider_id")
-    private String riderId;
+    private String driverIdentifier;
 
     @Lob
     @Column(name = "payload", nullable = false, columnDefinition = "LONGTEXT")
@@ -64,4 +64,19 @@ public class EventOutboxEntity {
 
     @Column(name = "last_error")
     private String lastError;
+
+    public String getRiderId() {
+        return driverIdentifier;
+    }
+
+    public void setRiderId(String riderId) {
+        this.driverIdentifier = riderId;
+    }
+
+    public static class EventOutboxEntityBuilder {
+        public EventOutboxEntityBuilder riderId(String riderId) {
+            this.driverIdentifier = riderId;
+            return this;
+        }
+    }
 }

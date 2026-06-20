@@ -1,4 +1,4 @@
-package com.handler.ride_request.model;
+package com.handler.ride_request.domain;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,8 +11,14 @@ import org.springframework.data.geo.Point;
 @NoArgsConstructor
 public class Rider {
     private String identifier;
+    private String driverIdentifier;
+    private String driverDisplayId;
     private String userName;
     private String averageDistance;
     private Point point;
     private String hash;
+
+    public String effectiveDriverIdentifier() {
+        return driverIdentifier != null ? driverIdentifier : identifier;
+    }
 }

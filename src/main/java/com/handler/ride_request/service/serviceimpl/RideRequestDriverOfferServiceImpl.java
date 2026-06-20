@@ -5,7 +5,7 @@ import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.mapper.RideRequestMapper;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.service.RideRequestDriverOfferService;
@@ -49,7 +49,7 @@ public class RideRequestDriverOfferServiceImpl implements RideRequestDriverOffer
         return findOrderedOffers(rideRequestId).stream()
                 .map(RideRequestDriverOfferEntity::getRider)
                 .filter(Objects::nonNull)
-                .map(RiderEntity::getIdentifier)
+                .map(this::driverIdentifierOf)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
@@ -99,8 +99,8 @@ public class RideRequestDriverOfferServiceImpl implements RideRequestDriverOffer
         if (identifiers.isEmpty()) {
             return Map.of();
         }
-        return riderRepository.findByIdentifierIn(identifiers).stream()
-                .collect(Collectors.toMap(RiderEntity::getIdentifier, Function.identity()));
+        return riderRepository.findByDriverIdentifierIn(identifiers).stream()
+                .collect(Collectors.toMap(this::driverIdentifierOf, Function.identity()));
     }
 
     private boolean hasNoPersistedRiders(RideRequestEntity rideRequestEntity, Map<String, RiderEntity> persistedRiders) {
@@ -114,10 +114,10 @@ public class RideRequestDriverOfferServiceImpl implements RideRequestDriverOffer
     private List<Rider> findPersistedCandidates(List<Rider> riders, Map<String, RiderEntity> persistedRiders) {
         List<Rider> candidates = new ArrayList<>();
         for (Rider rider : riders) {
-            if (persistedRiders.containsKey(rider.getIdentifier())) {
+            if (persistedRiders.containsKey(rider.effectiveDriverIdentifier())) {
                 candidates.add(rider);
             } else {
-                log.warn("Skipping rider {} because no MySQL rider record was found", rider.getIdentifier());
+                log.warn("Skipping rider {} because no MySQL rider record was found", rider.effectiveDriverIdentifier());
             }
         }
         return candidates;
@@ -154,7 +154,7 @@ public class RideRequestDriverOfferServiceImpl implements RideRequestDriverOffer
         return persistedCandidates.stream()
                 .map(rider -> RideRequestMapper.buildNotificationRecord(
                         rideRequestEntity,
-                        persistedRiders.get(rider.getIdentifier()),
+                        persistedRiders.get(rider.effectiveDriverIdentifier()),
                         notificationRound,
                         notifiedAt
                 ))
@@ -163,7 +163,7 @@ public class RideRequestDriverOfferServiceImpl implements RideRequestDriverOffer
 
     private Set<String> extractIdentifiers(List<Rider> riders) {
         return riders.stream()
-                .map(Rider::getIdentifier)
+                .map(Rider::effectiveDriverIdentifier)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
     }
@@ -186,11 +186,11 @@ public class RideRequestDriverOfferServiceImpl implements RideRequestDriverOffer
     }
 
     private boolean hasRider(RideRequestDriverOfferEntity offer) {
-        return offer.getRider() != null && offer.getRider().getIdentifier() != null;
+        return offer.getRider() != null && driverIdentifierOf(offer.getRider()) != null;
     }
 
     private boolean isNotAcceptedRider(RideRequestDriverOfferEntity offer, String acceptedRiderIdentifier) {
-        return !Objects.equals(offer.getRider().getIdentifier(), acceptedRiderIdentifier);
+        return !Objects.equals(driverIdentifierOf(offer.getRider()), acceptedRiderIdentifier);
     }
 
     private void markNotifiedOffer(
@@ -205,7 +205,7 @@ public class RideRequestDriverOfferServiceImpl implements RideRequestDriverOffer
     }
 
     private RideRequestDriverOfferEntity findOfferOrThrow(Long rideRequestId, String riderIdentifier) {
-        return offerRepository.findByRideRequestIdAndRiderIdentifier(rideRequestId, riderIdentifier)
+        return offerRepository.findByRideRequestIdAndDriverIdentifier(rideRequestId, riderIdentifier)
                 .orElseThrow(() -> new IllegalStateException(
                         "Rider " + riderIdentifier + " was not notified for ride " + rideRequestId));
     }
@@ -223,6 +223,10 @@ public class RideRequestDriverOfferServiceImpl implements RideRequestDriverOffer
             throw new IllegalStateException("Rider " + riderIdentifier + " notification for ride " + rideRequestId
                     + " is not awaiting response");
         }
+    }
+
+    private String driverIdentifierOf(RiderEntity riderEntity) {
+        return riderEntity.getDriverIdentifier() != null ? riderEntity.getDriverIdentifier() : riderEntity.getIdentifier();
     }
 
     @FunctionalInterface

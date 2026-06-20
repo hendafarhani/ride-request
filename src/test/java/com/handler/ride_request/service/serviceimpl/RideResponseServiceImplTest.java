@@ -59,6 +59,7 @@ class RideResponseServiceImplTest {
 
         rider = RiderEntity.builder()
                 .identifier("rider-999")
+                .driverIdentifier("rider-999")
                 .build();
     }
 
@@ -94,13 +95,13 @@ class RideResponseServiceImplTest {
     void shouldThrowWhenRiderIsMissing() {
         when(rideRequestRepository.findByIdentifier("ride-123"))
                 .thenReturn(Optional.of(pendingRequest));
-        when(riderRepository.findByIdentifier("unknown"))
+        when(riderRepository.findByDriverIdentifier("unknown"))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.acceptRide("ride-123", "unknown"))
                 .isInstanceOf(EntityNotFoundException.class);
 
-        verify(riderRepository).findByIdentifier("unknown");
+        verify(riderRepository).findByDriverIdentifier("unknown");
         verifyNoInteractions(offerService, notificationService);
     }
 
@@ -120,7 +121,7 @@ class RideResponseServiceImplTest {
     void shouldAcceptRideUpdateRequestAndNotify() {
         when(rideRequestRepository.findByIdentifier("ride-123"))
                 .thenReturn(Optional.of(pendingRequest));
-        when(riderRepository.findByIdentifier("rider-999"))
+        when(riderRepository.findByDriverIdentifier("rider-999"))
                 .thenReturn(Optional.of(rider));
         when(rideRequestRepository.save(pendingRequest)).thenReturn(pendingRequest);
 

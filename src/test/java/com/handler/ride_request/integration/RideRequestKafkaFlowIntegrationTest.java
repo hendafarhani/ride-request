@@ -10,8 +10,8 @@ import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.enums.OutboxEventStatus;
 import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
-import com.handler.ride_request.model.Location;
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.Location;
+import com.handler.ride_request.domain.RideRequest;
 import com.handler.ride_request.repository.EventOutboxRepository;
 import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
@@ -106,6 +106,9 @@ class RideRequestKafkaFlowIntegrationTest {
     @Value("${kafka.topics.ride-requests}")
     private String rideRequestsTopic;
 
+    @Value("${kafka.topics.driver-generated}")
+    private String driverGeneratedTopic;
+
     @DynamicPropertySource
     static void registerContainerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", mysql::getJdbcUrl);
@@ -176,6 +179,30 @@ class RideRequestKafkaFlowIntegrationTest {
         assertThat(notification.get("status").asText()).isEqualTo(StatusEnum.PENDING.name());
         assertThat(notification.get("riderIdentifier").asText()).isEqualTo("rider-flow-1");
         assertThat(notification.get("userIdentifier").asText()).startsWith("user-flow");
+    }
+
+    @Test
+    void projectsGeneratedDriverIntoMysqlIdempotently() throws Exception {
+        byte[] firstEvent = objectMapper.writeValueAsBytes(Map.of(
+                "driverId", "driver-generated-101",
+                "driverDisplayId", "DRV-GENERATED-101",
+                "scenario", "AIRPORT_RUSH"
+        ));
+
+        kafkaTemplate.send(driverGeneratedTopic, "driver-generated-101", firstEvent)
+                .get(10, TimeUnit.SECONDS);
+        kafkaTemplate.send(driverGeneratedTopic, "driver-generated-101", firstEvent)
+                .get(10, TimeUnit.SECONDS);
+
+        await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() -> {
+            assertThat(riderRepository.findAll())
+                    .singleElement()
+                    .satisfies(rider -> {
+                        assertThat(rider.getIdentifier()).isEqualTo("driver-generated-101");
+                        assertThat(rider.getDriverIdentifier()).isEqualTo("driver-generated-101");
+                        assertThat(rider.getDriverDisplayId()).isEqualTo("DRV-GENERATED-101");
+                    });
+        });
     }
 
     private RiderEntity rider(String identifier) {

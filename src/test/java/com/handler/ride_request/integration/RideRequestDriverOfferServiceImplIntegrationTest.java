@@ -6,7 +6,7 @@ import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.enums.StatusEnum;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
