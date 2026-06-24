@@ -21,7 +21,7 @@ public class EventOutBoxMapper {
 
     public static EventOutboxEntity mapToEventOutboxEntity(RideRequestEventType eventType,
                                                     RideRequestEntity rideRequest,
-                                                    String riderIdentifier,
+                                                    String driverIdentifier,
                                                     ObjectMapper objectMapper
                                                     ) {
         OffsetDateTime now = OffsetDateTime.now();
@@ -32,8 +32,8 @@ public class EventOutBoxMapper {
                 .rideRequestId(rideRequest.getId())
                 .rideRequestIdentifier(rideRequest.getIdentifier())
                 .requesterId(rideRequest.getUser().getIdentifier())
-                .riderId(riderIdentifier)
-                .payload(toPayload(eventType, rideRequest, riderIdentifier, now, objectMapper))
+                .driverIdentifier(driverIdentifier)
+                .payload(toPayload(eventType, rideRequest, driverIdentifier, now, objectMapper))
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -59,7 +59,7 @@ public class EventOutBoxMapper {
 
     private static String toPayload(RideRequestEventType eventType,
                              RideRequestEntity rideRequest,
-                             String riderIdentifier,
+                             String driverIdentifier,
                              OffsetDateTime eventTimestamp,
                              ObjectMapper objectMapper) {
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -68,7 +68,10 @@ public class EventOutBoxMapper {
         payload.put("rideRequestId", rideRequest.getId());
         payload.put("rideRequestIdentifier", rideRequest.getIdentifier());
         payload.put("requesterId", rideRequest.getUser().getIdentifier());
-        payload.put("riderId", riderIdentifier);
+        payload.put("riderId", driverIdentifier);
+        payload.put("driverIdentifier",
+                driverIdentifier != null ? driverIdentifier : rideRequest.getAcceptedDriverIdentifier());
+        payload.put("driverDisplayId", rideRequest.getAcceptedDriverDisplayId());
         payload.put("rideStatus", rideRequest.getStatus());
 
         try {

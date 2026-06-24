@@ -2,13 +2,14 @@ package com.handler.ride_request.scheduler;
 
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.enums.RideRequestEventType;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.mapper.RideRequestMapper;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.service.EventOutboxService;
+import com.handler.ride_request.service.RideRequestDriverOfferService;
 import com.handler.ride_request.service.RidersSearchService;
 import com.handler.ride_request.enums.StatusEnum;
-import com.handler.ride_request.service.impl.RideRequestDriverAttemptServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -28,89 +29,131 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RiderSearchScheduler {
 
     private static final int MAX_RETRIES = 3;
-    private static final int AWAITING_TIME_MIN = 4;
+    private static final int RETRY_DELAY_MINUTES = 4;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final RideRequestRepository rideRequestRepository;
     private final NotificationService notificationService;
     private final RidersSearchService ridersSearchService;
-    private final RideRequestDriverAttemptServiceImpl attemptService;
+    private final RideRequestDriverOfferService offerService;
     private final EventOutboxService eventOutboxService;
 
 
     public void scheduleRidersSearch(Long rideRequestId) {
-        AtomicInteger executionCount = new AtomicInteger();
         ScheduledFuture<?>[] futureHolder = new ScheduledFuture<?>[1];
-        futureHolder[0] = scheduler.scheduleAtFixedRate(() ->
-                handleRetry(rideRequestId, executionCount, futureHolder[0]),
-                AWAITING_TIME_MIN,
-                AWAITING_TIME_MIN,
+        AtomicInteger retryCount = new AtomicInteger();
+
+        futureHolder[0] = scheduler.scheduleAtFixedRate(
+                () -> handleRetry(rideRequestId, retryCount, futureHolder[0]),
+                RETRY_DELAY_MINUTES,
+                RETRY_DELAY_MINUTES,
                 TimeUnit.MINUTES);
     }
 
-    private void handleRetry(Long rideRequestId, AtomicInteger executionCount, ScheduledFuture<?> future) {
-        RideRequestEntity request = rideRequestRepository.findById(rideRequestId).orElse(null);
-        if (isRequestEmpty(request)) {
-            log.warn("Ride request {} not found anymore, canceling scheduler", rideRequestId);
-            cancelFuture(future);
+    private void handleRetry(Long rideRequestId, AtomicInteger retryCount, ScheduledFuture<?> future) {
+        RideRequestEntity request = findRideRequest(rideRequestId);
+
+        if (shouldStopBecauseRequestIsMissing(request, rideRequestId, future)) {
             return;
         }
 
-        if (!isRequestInPending(request)) {
-            log.info("Ride request {} moved to status {}, stopping retries", request.getIdentifier(), request.getStatus());
-            cancelFuture(future);
+        if (shouldStopBecauseRequestIsNoLongerPending(request, future)) {
             return;
         }
 
-        if (isRetryTimesGreaterThanMaxRetries(executionCount)) {
-            log.info("No confirmation received. Max retry times is exceeded.");
-        attemptService.markOutstandingAttemptsAsTimedOut(request.getId());
-        updateRideRequestCaseOfTimeout(request, executionCount.get());
-        eventOutboxService.recordRideRequestEvent(RideRequestEventType.REQUEST_TIMED_OUT, request);
-        notificationService.notifyRideTimedOut(request);
-        cancelFuture(future);
-        return;
+        if (shouldTimeoutRequest(retryCount)) {
+            timeoutRideRequest(request, retryCount.get());
+            stopScheduledSearch(future);
+            return;
         }
 
-        Set<String> attemptedRiderIdentifiers = attemptService.getAttemptedRiderIdentifiers(request.getId());
-        List<Rider> nextRiders = ridersSearchService.findNearestVehicles(request.getLocation(), attemptedRiderIdentifiers);
-        List<Rider> persistedCandidates = attemptService.createAttemptsForRound(
-                request,
-                nextRiders,
-                attemptService.getNextNotificationRound(request.getId())
-        );
-
-        log.info("No confirmation received within {} minutes. Relaunching search for ride {}.",
-                AWAITING_TIME_MIN, request.getIdentifier());
-        persistedCandidates.forEach(rider ->
-                eventOutboxService.recordRiderEvent(RideRequestEventType.RIDER_NOTIFIED, request, rider.getIdentifier()));
-        notificationService.sendRabbitMqNotification(persistedCandidates, request);
-        executionCount.incrementAndGet();
+        relaunchRiderSearch(request);
+        retryCount.incrementAndGet();
     }
 
-    private void updateRideRequestCaseOfTimeout(RideRequestEntity request, int executionCount) {
-        request.setStatus(StatusEnum.TIMED_OUT);
+    private RideRequestEntity findRideRequest(Long rideRequestId) {
+        return rideRequestRepository.findById(rideRequestId).orElse(null);
+    }
+
+    private boolean shouldStopBecauseRequestIsMissing(
+            RideRequestEntity request,
+            Long rideRequestId,
+            ScheduledFuture<?> future) {
+        if (request != null) {
+            return false;
+        }
+
+        log.warn("Ride request {} not found anymore, canceling scheduler", rideRequestId);
+        stopScheduledSearch(future);
+        return true;
+    }
+
+    private boolean shouldStopBecauseRequestIsNoLongerPending(RideRequestEntity request, ScheduledFuture<?> future) {
+        if (isPending(request)) {
+            return false;
+        }
+
+        log.info("Ride request {} moved to status {}, stopping retries", request.getIdentifier(), request.getStatus());
+        stopScheduledSearch(future);
+        return true;
+    }
+
+    private boolean shouldTimeoutRequest(AtomicInteger retryCount) {
+        return retryCount.get() >= MAX_RETRIES;
+    }
+
+    private void timeoutRideRequest(RideRequestEntity request, int retryCount) {
+        log.info("No confirmation received. Max retry times is exceeded.");
+        offerService.markOutstandingOffersAsTimedOut(request.getId());
+        saveTimedOutRideRequest(request, retryCount);
+        eventOutboxService.recordRideRequestEvent(RideRequestEventType.REQUEST_TIMED_OUT, request);
+        notificationService.notifyRideTimedOut(request);
+    }
+
+    private void saveTimedOutRideRequest(RideRequestEntity request, int retryCount) {
+        RideRequestMapper.markRideRequestAsTimedOut(request);
         rideRequestRepository.save(request);
         log.info("Update of rideRequest with identifier {}, " +
                 "into timed out because the number of execution count is {}, and no rider is found.",
-                request.getIdentifier(), executionCount);
+                request.getIdentifier(), retryCount);
     }
 
-    private void cancelFuture(ScheduledFuture<?> future) {
+    private void relaunchRiderSearch(RideRequestEntity request) {
+        List<Rider> persistedCandidates = findNextPersistedCandidates(request);
+        logRiderSearchRelaunched(request);
+        recordRiderNotificationEvents(request, persistedCandidates);
+        notificationService.sendRabbitMqNotification(persistedCandidates, request);
+    }
+
+    private List<Rider> findNextPersistedCandidates(RideRequestEntity request) {
+        Set<String> offeredRiderIdentifiers = offerService.getOfferedRiderIdentifiers(request.getId());
+        List<Rider> nextRiders = ridersSearchService.findNearestVehicles(request.getLocation(), offeredRiderIdentifiers);
+        return offerService.createOffersForRound(
+                request,
+                nextRiders,
+                offerService.getNextNotificationRound(request.getId())
+        );
+    }
+
+    private void logRiderSearchRelaunched(RideRequestEntity request) {
+        log.info("No confirmation received within {} minutes. Relaunching search for ride {}.",
+                RETRY_DELAY_MINUTES, request.getIdentifier());
+    }
+
+    private void recordRiderNotificationEvents(RideRequestEntity request, List<Rider> persistedCandidates) {
+        persistedCandidates.forEach(rider -> eventOutboxService.recordRiderEvent(
+                RideRequestEventType.RIDER_NOTIFIED,
+                request,
+                rider.getIdentifier()));
+    }
+
+    private void stopScheduledSearch(ScheduledFuture<?> future) {
         if (Objects.nonNull(future) && !future.isCancelled()) {
             future.cancel(false);
         }
     }
 
-    private boolean isRequestEmpty(RideRequestEntity request) {
-        return Objects.isNull(request);
-    }
-
-    private boolean isRetryTimesGreaterThanMaxRetries(AtomicInteger executionCount){
-        return executionCount.get() >= MAX_RETRIES;
-    }
-
-    private boolean isRequestInPending(RideRequestEntity request){
+    private boolean isPending(RideRequestEntity request) {
         return StatusEnum.PENDING.equals(request.getStatus());
     }
 }

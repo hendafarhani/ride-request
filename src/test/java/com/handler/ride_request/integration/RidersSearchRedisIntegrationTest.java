@@ -1,7 +1,7 @@
 package com.handler.ride_request.integration;
 
-import com.handler.ride_request.model.Rider;
-import com.handler.ride_request.service.impl.RidersSearchServiceImpl;
+import com.handler.ride_request.domain.Rider;
+import com.handler.ride_request.service.serviceimpl.RidersSearchServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,7 +47,9 @@ class RidersSearchRedisIntegrationTest {
 
     @BeforeEach
     void cleanRedis() {
-        stringRedisTemplate.delete(RidersSearchServiceImpl.VEHICLE_LOCATION);
+        stringRedisTemplate.delete(List.of(
+                RidersSearchServiceImpl.VEHICLE_LOCATION,
+                RidersSearchServiceImpl.AVAILABLE_DRIVERS_KEY));
     }
 
     @Test
@@ -75,13 +77,13 @@ class RidersSearchRedisIntegrationTest {
     }
 
     @Test
-    void excludesAlreadyAttemptedRiderIdentifiers() {
-        addRider("attempted-rider", 2.3522, 48.8566);
+    void excludesAlreadyOfferedRiderIdentifiers() {
+        addRider("offered-rider", 2.3522, 48.8566);
         addRider("available-rider", 2.3600, 48.8600);
 
         List<Rider> riders = service.findNearestVehicles(
                 new Point(2.3520, 48.8560),
-                Set.of("attempted-rider"));
+                Set.of("offered-rider"));
 
         assertThat(riders)
                 .extracting(Rider::getIdentifier)
@@ -96,7 +98,10 @@ class RidersSearchRedisIntegrationTest {
     }
 
     private void addRider(String identifier, double longitude, double latitude) {
+        // Position lives in vehicle_location; availability membership lives in the available_drivers SET.
         stringRedisTemplate.opsForGeo()
                 .add(RidersSearchServiceImpl.VEHICLE_LOCATION, new Point(longitude, latitude), identifier);
+        stringRedisTemplate.opsForSet()
+                .add(RidersSearchServiceImpl.AVAILABLE_DRIVERS_KEY, identifier);
     }
 }

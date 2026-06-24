@@ -19,5 +19,9 @@ public interface EventOutboxRepository extends JpaRepository<EventOutboxEntity, 
 
     List<EventOutboxEntity> findByRequesterIdAndStatusOrderByCreatedAtAsc(String requesterId, OutboxEventStatus status);
 
-    List<EventOutboxEntity> findByRiderIdAndStatusOrderByCreatedAtAsc(String riderId, OutboxEventStatus status);
+    List<EventOutboxEntity> findByDriverIdentifierAndStatusOrderByCreatedAtAsc(String driverIdentifier, OutboxEventStatus status);
+
+    default List<EventOutboxEntity> findByRiderIdAndStatusOrderByCreatedAtAsc(String riderId, OutboxEventStatus status) {
+        return findByDriverIdentifierAndStatusOrderByCreatedAtAsc(riderId, status);
+    }
 }

@@ -1,11 +1,11 @@
 package com.handler.ride_request.integration;
 
 import com.handler.ride_request.entity.EventOutboxEntity;
-import com.handler.ride_request.entity.RideRequestDriverAttemptEntity;
+import com.handler.ride_request.entity.RideRequestDriverOfferEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
-import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.enums.OutboxEventStatus;
 import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
@@ -13,7 +13,7 @@ import com.handler.ride_request.rabbitmq.model.RideAcceptanceMessage;
 import com.handler.ride_request.rabbitmq.model.RideResponseMessage;
 import com.handler.ride_request.rabbitmq.model.RideResponseType;
 import com.handler.ride_request.repository.EventOutboxRepository;
-import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
+import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.repository.UserRepository;
@@ -37,7 +37,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(properties = {
-        "kafka.enabled=false",
         "spring.cloud.config.enabled=false",
         "spring.cloud.discovery.enabled=false",
         "eureka.client.enabled=false",
@@ -66,7 +65,7 @@ class RideAcceptanceRabbitMqIntegrationTest {
     private RideRequestRepository rideRequestRepository;
 
     @Autowired
-    private RideRequestDriverAttemptRepository attemptRepository;
+    private RideRequestDriverOfferRepository offerRepository;
 
     @Autowired
     private EventOutboxRepository eventOutboxRepository;
@@ -86,14 +85,14 @@ class RideAcceptanceRabbitMqIntegrationTest {
     @BeforeEach
     void cleanState() {
         eventOutboxRepository.deleteAll();
-        attemptRepository.deleteAll();
+        offerRepository.deleteAll();
         rideRequestRepository.deleteAll();
         riderRepository.deleteAll();
         userRepository.deleteAll();
     }
 
     @Test
-    void consumesRideAcceptanceAndUpdatesRequestAndAttempts() {
+    void consumesRideAcceptanceAndUpdatesRequestAndOffers() {
         UserEntity user = userRepository.save(UserEntity.builder()
                 .identifier("requester-acceptance")
                 .name("Requester")
@@ -106,8 +105,8 @@ class RideAcceptanceRabbitMqIntegrationTest {
                 .build());
         RiderEntity acceptedRider = riderRepository.save(rider("accepted-rider"));
         RiderEntity waitingRider = riderRepository.save(rider("waiting-rider"));
-        attemptRepository.save(attempt(rideRequest, acceptedRider));
-        attemptRepository.save(attempt(rideRequest, waitingRider));
+        offerRepository.save(offer(rideRequest, acceptedRider));
+        offerRepository.save(offer(rideRequest, waitingRider));
 
         rabbitTemplate.convertAndSend(
                 "ride.acceptance.exchange",
@@ -120,10 +119,10 @@ class RideAcceptanceRabbitMqIntegrationTest {
             assertThat(updatedRequest.getAcceptedRiderIdentifier()).isEqualTo("accepted-rider");
             assertThat(updatedRequest.getAcceptedAt()).isNotNull();
 
-            assertThat(attemptRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "accepted-rider"))
-                    .hasValueSatisfying(attempt -> assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.ACCEPTED));
-            assertThat(attemptRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "waiting-rider"))
-                    .hasValueSatisfying(attempt -> assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.CANCELED));
+            assertThat(offerRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "accepted-rider"))
+                    .hasValueSatisfying(offer -> assertThat(offer.getStatus()).isEqualTo(OfferStatus.ACCEPTED));
+            assertThat(offerRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "waiting-rider"))
+                    .hasValueSatisfying(offer -> assertThat(offer.getStatus()).isEqualTo(OfferStatus.CANCELED));
             assertThat(eventOutboxRepository.findByRideRequestIdAndStatusOrderByCreatedAtAsc(
                     updatedRequest.getId(), OutboxEventStatus.PENDING))
                     .extracting(EventOutboxEntity::getEventType)
@@ -132,7 +131,7 @@ class RideAcceptanceRabbitMqIntegrationTest {
     }
 
     @Test
-    void consumesRideResponseAcceptanceAndUpdatesRequestAndAttempts() {
+    void consumesRideResponseAcceptanceAndUpdatesRequestAndOffers() {
         UserEntity user = userRepository.save(UserEntity.builder()
                 .identifier("requester-response-acceptance")
                 .name("Requester")
@@ -145,8 +144,8 @@ class RideAcceptanceRabbitMqIntegrationTest {
                 .build());
         RiderEntity acceptedRider = riderRepository.save(rider("response-accepted-rider"));
         RiderEntity waitingRider = riderRepository.save(rider("response-waiting-rider"));
-        attemptRepository.save(attempt(rideRequest, acceptedRider));
-        attemptRepository.save(attempt(rideRequest, waitingRider));
+        offerRepository.save(offer(rideRequest, acceptedRider));
+        offerRepository.save(offer(rideRequest, waitingRider));
 
         rabbitTemplate.convertAndSend(
                 "ride.response.exchange",
@@ -159,10 +158,10 @@ class RideAcceptanceRabbitMqIntegrationTest {
             assertThat(updatedRequest.getAcceptedRiderIdentifier()).isEqualTo("response-accepted-rider");
             assertThat(updatedRequest.getAcceptedAt()).isNotNull();
 
-            assertThat(attemptRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "response-accepted-rider"))
-                    .hasValueSatisfying(attempt -> assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.ACCEPTED));
-            assertThat(attemptRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "response-waiting-rider"))
-                    .hasValueSatisfying(attempt -> assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.CANCELED));
+            assertThat(offerRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "response-accepted-rider"))
+                    .hasValueSatisfying(offer -> assertThat(offer.getStatus()).isEqualTo(OfferStatus.ACCEPTED));
+            assertThat(offerRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "response-waiting-rider"))
+                    .hasValueSatisfying(offer -> assertThat(offer.getStatus()).isEqualTo(OfferStatus.CANCELED));
             assertThat(eventOutboxRepository.findByRideRequestIdAndStatusOrderByCreatedAtAsc(
                     updatedRequest.getId(), OutboxEventStatus.PENDING))
                     .extracting(EventOutboxEntity::getEventType)
@@ -183,7 +182,7 @@ class RideAcceptanceRabbitMqIntegrationTest {
                 .location(new Point(2.3522, 48.8566))
                 .build());
         RiderEntity declinedRider = riderRepository.save(rider("response-declined-rider"));
-        attemptRepository.save(attempt(rideRequest, declinedRider));
+        offerRepository.save(offer(rideRequest, declinedRider));
 
         rabbitTemplate.convertAndSend(
                 "ride.response.exchange",
@@ -196,10 +195,10 @@ class RideAcceptanceRabbitMqIntegrationTest {
             assertThat(updatedRequest.getAcceptedRiderIdentifier()).isNull();
             assertThat(updatedRequest.getAcceptedAt()).isNull();
 
-            assertThat(attemptRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "response-declined-rider"))
-                    .hasValueSatisfying(attempt -> {
-                        assertThat(attempt.getStatus()).isEqualTo(AttemptStatus.DECLINED);
-                        assertThat(attempt.getRespondedAt()).isNotNull();
+            assertThat(offerRepository.findByRideRequestIdAndRiderIdentifier(updatedRequest.getId(), "response-declined-rider"))
+                    .hasValueSatisfying(offer -> {
+                        assertThat(offer.getStatus()).isEqualTo(OfferStatus.DECLINED);
+                        assertThat(offer.getRespondedAt()).isNotNull();
                     });
             assertThat(eventOutboxRepository.findByRiderIdAndStatusOrderByCreatedAtAsc(
                     "response-declined-rider", OutboxEventStatus.PENDING))
@@ -217,13 +216,13 @@ class RideAcceptanceRabbitMqIntegrationTest {
                 .build();
     }
 
-    private RideRequestDriverAttemptEntity attempt(RideRequestEntity rideRequest, RiderEntity rider) {
-        return RideRequestDriverAttemptEntity.builder()
+    private RideRequestDriverOfferEntity offer(RideRequestEntity rideRequest, RiderEntity rider) {
+        return RideRequestDriverOfferEntity.builder()
                 .rideRequest(rideRequest)
                 .rider(rider)
                 .notificationRound(1)
                 .notifiedAt(OffsetDateTime.now())
-                .status(AttemptStatus.NOTIFIED)
+                .status(OfferStatus.NOTIFIED)
                 .build();
     }
 }

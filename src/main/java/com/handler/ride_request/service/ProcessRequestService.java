@@ -1,7 +1,7 @@
 package com.handler.ride_request.service;
 
 
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.RideRequest;
 
 public interface ProcessRequestService {
 

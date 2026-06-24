@@ -6,14 +6,14 @@ import com.handler.ride_request.entity.EventOutboxEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.RiderEntity;
 import com.handler.ride_request.entity.UserEntity;
-import com.handler.ride_request.enums.AttemptStatus;
+import com.handler.ride_request.enums.OfferStatus;
 import com.handler.ride_request.enums.OutboxEventStatus;
 import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
-import com.handler.ride_request.model.Location;
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.Location;
+import com.handler.ride_request.domain.RideRequest;
 import com.handler.ride_request.repository.EventOutboxRepository;
-import com.handler.ride_request.repository.RideRequestDriverAttemptRepository;
+import com.handler.ride_request.repository.RideRequestDriverOfferRepository;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.repository.RiderRepository;
 import com.handler.ride_request.repository.UserRepository;
@@ -60,8 +60,10 @@ import static org.awaitility.Awaitility.await;
 @Testcontainers(disabledWithoutDocker = true)
 class RideRequestKafkaFlowIntegrationTest {
 
-    private static final String RIDE_REQUESTS_TOPIC = "ride.requests";
+    // Dispatch matching reads positions from vehicle_location and intersects with the
+    // simulation-owned available_drivers SET, so seed both.
     private static final String VEHICLE_LOCATION = "vehicle_location";
+    private static final String AVAILABLE_DRIVERS = "available_drivers";
 
     @Container
     static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");
@@ -99,10 +101,16 @@ class RideRequestKafkaFlowIntegrationTest {
     private RideRequestRepository rideRequestRepository;
 
     @Autowired
-    private RideRequestDriverAttemptRepository attemptRepository;
+    private RideRequestDriverOfferRepository offerRepository;
 
     @Autowired
     private EventOutboxRepository eventOutboxRepository;
+
+    @Value("${kafka.topics.ride-requests}")
+    private String rideRequestsTopic;
+
+    @Value("${kafka.topics.driver-generated}")
+    private String driverGeneratedTopic;
 
     @DynamicPropertySource
     static void registerContainerProperties(DynamicPropertyRegistry registry) {
@@ -122,15 +130,15 @@ class RideRequestKafkaFlowIntegrationTest {
     @BeforeEach
     void cleanState() {
         eventOutboxRepository.deleteAll();
-        attemptRepository.deleteAll();
+        offerRepository.deleteAll();
         rideRequestRepository.deleteAll();
         riderRepository.deleteAll();
         userRepository.deleteAll();
-        stringRedisTemplate.delete(VEHICLE_LOCATION);
+        stringRedisTemplate.delete(java.util.List.of(VEHICLE_LOCATION, AVAILABLE_DRIVERS));
     }
 
     @Test
-    void consumesRideRequestFromKafkaPersistsAttemptsAndPublishesRabbitNotification() throws Exception {
+    void consumesRideRequestFromKafkaPersistsOffersAndPublishesRabbitNotification() throws Exception {
         userRepository.save(UserEntity.builder()
                 .identifier("user-flow")
                 .name("Flow User")
@@ -139,13 +147,14 @@ class RideRequestKafkaFlowIntegrationTest {
         riderRepository.save(rider("rider-flow-2"));
         stringRedisTemplate.opsForGeo().add(VEHICLE_LOCATION, new Point(2.3522, 48.8566), "rider-flow-1");
         stringRedisTemplate.opsForGeo().add(VEHICLE_LOCATION, new Point(2.3610, 48.8560), "rider-flow-2");
+        stringRedisTemplate.opsForSet().add(AVAILABLE_DRIVERS, "rider-flow-1", "rider-flow-2");
 
         RideRequest rideRequest = RideRequest.builder()
                 .userIdentifier("user-flow")
                 .location(Location.builder().latitude(48.8566).longitude(2.3522).build())
                 .build();
 
-        kafkaTemplate.send(RIDE_REQUESTS_TOPIC, "user-flow", objectMapper.writeValueAsBytes(rideRequest))
+        kafkaTemplate.send(rideRequestsTopic, "user-flow", objectMapper.writeValueAsBytes(rideRequest))
                 .get(10, TimeUnit.SECONDS);
 
         await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() -> {
@@ -153,8 +162,8 @@ class RideRequestKafkaFlowIntegrationTest {
             assertThat(rideRequests).hasSize(1);
             assertThat(rideRequests.getFirst().getStatus()).isEqualTo(StatusEnum.PENDING);
 
-            assertThat(attemptRepository.findByRideRequestIdAndStatus(
-                    rideRequests.getFirst().getId(), AttemptStatus.NOTIFIED)).hasSize(2);
+            assertThat(offerRepository.findByRideRequestIdAndStatus(
+                    rideRequests.getFirst().getId(), OfferStatus.NOTIFIED)).hasSize(2);
 
             assertThat(eventOutboxRepository.findByRideRequestIdAndStatusOrderByCreatedAtAsc(
                     rideRequests.getFirst().getId(), OutboxEventStatus.PENDING))
@@ -174,6 +183,30 @@ class RideRequestKafkaFlowIntegrationTest {
         assertThat(notification.get("status").asText()).isEqualTo(StatusEnum.PENDING.name());
         assertThat(notification.get("riderIdentifier").asText()).isEqualTo("rider-flow-1");
         assertThat(notification.get("userIdentifier").asText()).startsWith("user-flow");
+    }
+
+    @Test
+    void projectsGeneratedDriverIntoMysqlIdempotently() throws Exception {
+        byte[] firstEvent = objectMapper.writeValueAsBytes(Map.of(
+                "driverId", "driver-generated-101",
+                "driverDisplayId", "DRV-GENERATED-101",
+                "scenario", "AIRPORT_RUSH"
+        ));
+
+        kafkaTemplate.send(driverGeneratedTopic, "driver-generated-101", firstEvent)
+                .get(10, TimeUnit.SECONDS);
+        kafkaTemplate.send(driverGeneratedTopic, "driver-generated-101", firstEvent)
+                .get(10, TimeUnit.SECONDS);
+
+        await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() -> {
+            assertThat(riderRepository.findAll())
+                    .singleElement()
+                    .satisfies(rider -> {
+                        assertThat(rider.getIdentifier()).isEqualTo("driver-generated-101");
+                        assertThat(rider.getDriverIdentifier()).isEqualTo("driver-generated-101");
+                        assertThat(rider.getDriverDisplayId()).isEqualTo("DRV-GENERATED-101");
+                    });
+        });
     }
 
     private RiderEntity rider(String identifier) {

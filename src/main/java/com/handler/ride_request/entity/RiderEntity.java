@@ -5,6 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.*;
 
@@ -16,7 +18,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "RIDERS")
+@Table(name = "driver")
 public class RiderEntity {
 
     @Id
@@ -29,10 +31,31 @@ public class RiderEntity {
     @Column(name = "identifier", unique = true)
     private String identifier;
 
+    @Column(name = "driver_identifier", unique = true)
+    private String driverIdentifier;
+
+    @Column(name = "driver_display_id", unique = true)
+    private String driverDisplayId;
+
     @Column(name = "license_number", unique = true)
     private String licenseNumber;
 
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
+
+    @PrePersist
+    @PreUpdate
+    void ensureDriverIdentityFields() {
+        if (driverIdentifier == null || driverIdentifier.isBlank()) {
+            driverIdentifier = identifier;
+        }
+        if ((driverDisplayId == null || driverDisplayId.isBlank()) && driverIdentifier != null) {
+            driverDisplayId = "DRV-" + driverIdentifier.toUpperCase().replaceAll("[^A-Z0-9]+", "-");
+        }
+    }
+
+    public String effectiveDriverIdentifier() {
+        return driverIdentifier != null ? driverIdentifier : identifier;
+    }
 
 }

@@ -2,7 +2,7 @@ package com.handler.ride_request.rabbitmq.mapper;
 
 
 import com.handler.ride_request.entity.RideRequestEntity;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.rabbitmq.model.RideNotification;
 import com.handler.ride_request.enums.StatusEnum;
 

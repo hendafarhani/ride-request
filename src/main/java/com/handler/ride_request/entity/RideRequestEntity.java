@@ -28,19 +28,31 @@ public class RideRequestEntity {
     @Column(name = "identifier", unique = true)
     private String identifier;
 
-    @Column(name = "status")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 32)
     private StatusEnum status;
 
     @Column(name = "location")
     private Point location;
 
     @Column(name = "accepted_rider_identifier")
-    private String acceptedRiderIdentifier;
+    private String acceptedDriverIdentifier;
+
+    @Column(name = "accepted_driver_display_id")
+    private String acceptedDriverDisplayId;
 
     @Column(name = "accepted_at")
     private OffsetDateTime acceptedAt;
 
     @Builder.Default
     @OneToMany(mappedBy = "rideRequest", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<RideRequestDriverAttemptEntity> driverAttempts = new ArrayList<>();
+    private List<RideRequestDriverOfferEntity> driverOffers = new ArrayList<>();
+
+    public String getAcceptedRiderIdentifier() {
+        return acceptedDriverIdentifier;
+    }
+
+    public void setAcceptedRiderIdentifier(String acceptedRiderIdentifier) {
+        this.acceptedDriverIdentifier = acceptedRiderIdentifier;
+    }
 }

@@ -1,6 +1,6 @@
 package com.handler.ride_request.mapper;
 
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;

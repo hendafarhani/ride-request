@@ -1,11 +1,12 @@
 package com.handler.ride_request.kafka.configuration;
 
+import com.handler.ride_request.kafka.model.DriverGeneratedEvent;
+import com.handler.ride_request.kafka.serialization.DriverGeneratedEventJsonDeserializer;
 import com.handler.ride_request.kafka.serialization.RideRequestJsonDeserializer;
-import com.handler.ride_request.model.RideRequest;
+import com.handler.ride_request.domain.RideRequest;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -19,7 +20,6 @@ import java.util.Map;
 
 @EnableKafka
 @Configuration
-@ConditionalOnProperty(name = "kafka.enabled", havingValue = "true", matchIfMissing = true)
 public class KafkaListenerConfiguration {
 
     @Bean
@@ -41,8 +41,23 @@ public class KafkaListenerConfiguration {
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), errorHandlingDeserializer);
     }
 
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, DriverGeneratedEvent> driverGeneratedListenerFactory(
+            ConsumerFactory<String, DriverGeneratedEvent> driverGeneratedConsumerFactory) {
+        ConcurrentKafkaListenerContainerFactory<String, DriverGeneratedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(driverGeneratedConsumerFactory);
+        return factory;
+    }
 
-
-
-
+    @Bean
+    public ConsumerFactory<String, DriverGeneratedEvent> driverGeneratedConsumerFactory(
+            @Value("${kafka.bootstrap-servers}") String bootstrapServers) {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        ErrorHandlingDeserializer<DriverGeneratedEvent> errorHandlingDeserializer =
+                new ErrorHandlingDeserializer<>(new DriverGeneratedEventJsonDeserializer());
+        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), errorHandlingDeserializer);
+    }
 }

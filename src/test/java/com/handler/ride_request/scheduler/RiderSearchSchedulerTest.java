@@ -4,12 +4,12 @@ import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
 import com.handler.ride_request.enums.RideRequestEventType;
 import com.handler.ride_request.enums.StatusEnum;
-import com.handler.ride_request.model.Rider;
+import com.handler.ride_request.domain.Rider;
 import com.handler.ride_request.rabbitmq.service.NotificationService;
 import com.handler.ride_request.repository.RideRequestRepository;
 import com.handler.ride_request.service.EventOutboxService;
 import com.handler.ride_request.service.RidersSearchService;
-import com.handler.ride_request.service.impl.RideRequestDriverAttemptServiceImpl;
+import com.handler.ride_request.service.RideRequestDriverOfferService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,7 +44,7 @@ class RiderSearchSchedulerTest {
     private RidersSearchService ridersSearchService;
 
     @Mock
-    private RideRequestDriverAttemptServiceImpl attemptService;
+    private RideRequestDriverOfferService offerService;
 
     @Mock
     private EventOutboxService eventOutboxService;
@@ -87,7 +87,7 @@ class RiderSearchSchedulerTest {
         invokeHandleRetry(123L, new AtomicInteger(), future);
 
         verify(future).cancel(false);
-        verifyNoInteractions(attemptService, notificationService, ridersSearchService);
+        verifyNoInteractions(offerService, notificationService, ridersSearchService);
     }
 
     @Test
@@ -104,7 +104,7 @@ class RiderSearchSchedulerTest {
         invokeHandleRetry(accepted.getId(), new AtomicInteger(), future);
 
         verify(future).cancel(false);
-        verifyNoInteractions(attemptService, notificationService, ridersSearchService);
+        verifyNoInteractions(offerService, notificationService, ridersSearchService);
     }
 
     @Test
@@ -115,7 +115,7 @@ class RiderSearchSchedulerTest {
 
         invokeHandleRetry(pendingRequest.getId(), new AtomicInteger(3), future);
 
-        verify(attemptService).markOutstandingAttemptsAsTimedOut(pendingRequest.getId());
+        verify(offerService).markOutstandingOffersAsTimedOut(pendingRequest.getId());
         verify(rideRequestRepository).save(pendingRequest);
         assertThat(pendingRequest.getStatus()).isEqualTo(StatusEnum.TIMED_OUT);
         verify(eventOutboxService).recordRideRequestEvent(RideRequestEventType.REQUEST_TIMED_OUT, pendingRequest);
@@ -127,19 +127,19 @@ class RiderSearchSchedulerTest {
     @Test
     void handleRetry_relaunchesSearchAndIncrementsExecutionCount() throws Exception {
         when(rideRequestRepository.findById(pendingRequest.getId())).thenReturn(Optional.of(pendingRequest));
-        when(attemptService.getAttemptedRiderIdentifiers(pendingRequest.getId())).thenReturn(Set.of("old-rider"));
+        when(offerService.getOfferedRiderIdentifiers(pendingRequest.getId())).thenReturn(Set.of("old-rider"));
         List<Rider> newCandidates = List.of(Rider.builder().identifier("new-1").build());
         when(ridersSearchService.findNearestVehicles(pendingRequest.getLocation(), Set.of("old-rider")))
                 .thenReturn(newCandidates);
-        when(attemptService.getNextNotificationRound(pendingRequest.getId())).thenReturn(2);
-        when(attemptService.createAttemptsForRound(pendingRequest, newCandidates, 2)).thenReturn(newCandidates);
+        when(offerService.getNextNotificationRound(pendingRequest.getId())).thenReturn(2);
+        when(offerService.createOffersForRound(pendingRequest, newCandidates, 2)).thenReturn(newCandidates);
         ScheduledFuture<?> future = mock(ScheduledFuture.class);
         
         AtomicInteger executionCount = new AtomicInteger(0);
 
         invokeHandleRetry(pendingRequest.getId(), executionCount, future);
 
-        verify(attemptService).createAttemptsForRound(pendingRequest, newCandidates, 2);
+        verify(offerService).createOffersForRound(pendingRequest, newCandidates, 2);
         verify(eventOutboxService).recordRiderEvent(RideRequestEventType.RIDER_NOTIFIED, pendingRequest, "new-1");
         verify(notificationService).sendRabbitMqNotification(newCandidates, pendingRequest);
         assertThat(executionCount.get()).isEqualTo(1);
