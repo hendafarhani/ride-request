@@ -47,7 +47,9 @@ class RidersSearchRedisIntegrationTest {
 
     @BeforeEach
     void cleanRedis() {
-        stringRedisTemplate.delete(RidersSearchServiceImpl.VEHICLE_LOCATION);
+        stringRedisTemplate.delete(List.of(
+                RidersSearchServiceImpl.VEHICLE_LOCATION,
+                RidersSearchServiceImpl.AVAILABLE_DRIVERS_KEY));
     }
 
     @Test
@@ -96,7 +98,10 @@ class RidersSearchRedisIntegrationTest {
     }
 
     private void addRider(String identifier, double longitude, double latitude) {
+        // Position lives in vehicle_location; availability membership lives in the available_drivers SET.
         stringRedisTemplate.opsForGeo()
                 .add(RidersSearchServiceImpl.VEHICLE_LOCATION, new Point(longitude, latitude), identifier);
+        stringRedisTemplate.opsForSet()
+                .add(RidersSearchServiceImpl.AVAILABLE_DRIVERS_KEY, identifier);
     }
 }

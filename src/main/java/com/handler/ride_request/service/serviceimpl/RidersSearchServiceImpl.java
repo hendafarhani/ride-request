@@ -21,7 +21,12 @@ public class RidersSearchServiceImpl implements RidersSearchService {
 
     private final StringRedisTemplate stringRedisTemplate;
 
+    // All driver/vehicle positions (written by driver-location-generator / location-saver).
     public static final String VEHICLE_LOCATION = "vehicle_location";
+    // Simulation-owned SET of driver ids currently available for dispatch (no positions).
+    // Matching intersects the nearest vehicles with this set, so busy drivers are skipped and a
+    // driver freed by a cancellation re-qualifies automatically.
+    public static final String AVAILABLE_DRIVERS_KEY = "available_drivers";
     public static final int MAX_NUMBER_RIDERS = 5;
     public static final int DISTANCE = 10;
 
@@ -33,7 +38,12 @@ public class RidersSearchServiceImpl implements RidersSearchService {
             return List.of();
         }
 
-        return mapAllowedVehicleLocationsToRiders(nearbyVehicles, excludedIdentifiers);
+        return mapAllowedVehicleLocationsToRiders(nearbyVehicles, excludedIdentifiers, availableDriverIds());
+    }
+
+    private Set<String> availableDriverIds() {
+        Set<String> members = stringRedisTemplate.opsForSet().members(AVAILABLE_DRIVERS_KEY);
+        return members == null ? Set.of() : members;
     }
 
     private void validateLocation(Point location) {
@@ -68,12 +78,20 @@ public class RidersSearchServiceImpl implements RidersSearchService {
 
     private List<Rider> mapAllowedVehicleLocationsToRiders(
             GeoResults<RedisGeoCommands.GeoLocation<String>> nearbyVehicles,
-            Set<String> excludedIdentifiers) {
+            Set<String> excludedIdentifiers,
+            Set<String> availableDriverIds) {
         return nearbyVehicles.getContent().stream()
+                .filter(vehicleLocation -> isAvailable(vehicleLocation, availableDriverIds))
                 .filter(vehicleLocation -> isAllowedCandidate(vehicleLocation, excludedIdentifiers))
                 .limit(MAX_NUMBER_RIDERS)
                 .map(this::mapToRider)
                 .toList();
+    }
+
+    private boolean isAvailable(
+            GeoResult<RedisGeoCommands.GeoLocation<String>> vehicleLocation,
+            Set<String> availableDriverIds) {
+        return availableDriverIds.contains(extractIdentifier(vehicleLocation));
     }
 
     private boolean isAllowedCandidate(

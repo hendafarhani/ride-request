@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.geo.*;
 import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.GeoOperations;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.ArrayList;
@@ -29,8 +30,16 @@ class RidersSearchServiceImplTest {
     @Mock
     private GeoOperations<String, String> geoOperations;
 
+    @Mock
+    private SetOperations<String, String> setOperations;
+
     @InjectMocks
     private RidersSearchServiceImpl service;
+
+    private void availableDrivers(String... driverIds) {
+        when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+        when(setOperations.members(RidersSearchServiceImpl.AVAILABLE_DRIVERS_KEY)).thenReturn(Set.of(driverIds));
+    }
 
     private Point location;
 
@@ -81,6 +90,7 @@ class RidersSearchServiceImplTest {
 
         when(stringRedisTemplate.opsForGeo()).thenReturn(geoOperations);
         when(geoOperations.radius(anyString(), any(Circle.class), any())).thenReturn(results);
+        availableDrivers("keep-me", "skip-me");
 
         List<Rider> riders = service.findNearestVehicles(location, Set.of("skip-me"));
 
@@ -88,6 +98,24 @@ class RidersSearchServiceImplTest {
         assertThat(riders.getFirst().getIdentifier()).isEqualTo("keep-me");
         verify(geoOperations).hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "keep-me");
         verify(geoOperations, never()).hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "skip-me");
+    }
+
+    @Test
+    void shouldSkipNearbyDriversThatAreNotAvailable() {
+        GeoResults<RedisGeoCommands.GeoLocation<String>> results = new GeoResults<>(List.of(
+                geoResult("available-driver", new Point(11, 21), 1),
+                geoResult("busy-driver", new Point(12, 22), 2)
+        ));
+
+        when(stringRedisTemplate.opsForGeo()).thenReturn(geoOperations);
+        when(geoOperations.radius(anyString(), any(Circle.class), any())).thenReturn(results);
+        availableDrivers("available-driver"); // busy-driver is nearby but absent from the availability set
+
+        List<Rider> riders = service.findNearestVehicles(location, Set.of());
+
+        assertThat(riders).hasSize(1);
+        assertThat(riders.getFirst().getIdentifier()).isEqualTo("available-driver");
+        verify(geoOperations, never()).hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "busy-driver");
     }
 
     @Test
@@ -101,6 +129,7 @@ class RidersSearchServiceImplTest {
         when(geoOperations.radius(anyString(), any(Circle.class), any())).thenReturn(results);
         when(geoOperations.hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "rider-1"))
                 .thenReturn(List.of("hash-1"));
+        availableDrivers("rider-1");
 
         List<Rider> riders = service.findNearestVehicles(location, Set.of());
 
@@ -122,6 +151,7 @@ class RidersSearchServiceImplTest {
         when(geoOperations.radius(anyString(), any(Circle.class), any())).thenReturn(results);
         when(geoOperations.hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "no-hash"))
                 .thenReturn(null);
+        availableDrivers("no-hash");
 
         List<Rider> riders = service.findNearestVehicles(location, Set.of());
 
@@ -141,6 +171,7 @@ class RidersSearchServiceImplTest {
         when(geoOperations.radius(anyString(), any(Circle.class), any())).thenReturn(results);
         when(geoOperations.hash(RidersSearchServiceImpl.VEHICLE_LOCATION, "empty-hash"))
                 .thenReturn(List.of());
+        availableDrivers("empty-hash");
 
         List<Rider> riders = service.findNearestVehicles(location, Set.of());
 
@@ -161,6 +192,7 @@ class RidersSearchServiceImplTest {
         when(stringRedisTemplate.opsForGeo()).thenReturn(geoOperations);
         when(geoOperations.radius(anyString(), any(Circle.class), any()))
                 .thenReturn(new GeoResults<>(geoResults));
+        availableDrivers("rider-0", "rider-1", "rider-2", "rider-3", "rider-4", "rider-5", "rider-6");
 
         List<Rider> riders = service.findNearestVehicles(location, Set.of());
 

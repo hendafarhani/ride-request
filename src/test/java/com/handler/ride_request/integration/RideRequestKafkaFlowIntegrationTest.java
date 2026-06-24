@@ -60,7 +60,10 @@ import static org.awaitility.Awaitility.await;
 @Testcontainers(disabledWithoutDocker = true)
 class RideRequestKafkaFlowIntegrationTest {
 
+    // Dispatch matching reads positions from vehicle_location and intersects with the
+    // simulation-owned available_drivers SET, so seed both.
     private static final String VEHICLE_LOCATION = "vehicle_location";
+    private static final String AVAILABLE_DRIVERS = "available_drivers";
 
     @Container
     static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");
@@ -131,7 +134,7 @@ class RideRequestKafkaFlowIntegrationTest {
         rideRequestRepository.deleteAll();
         riderRepository.deleteAll();
         userRepository.deleteAll();
-        stringRedisTemplate.delete(VEHICLE_LOCATION);
+        stringRedisTemplate.delete(java.util.List.of(VEHICLE_LOCATION, AVAILABLE_DRIVERS));
     }
 
     @Test
@@ -144,6 +147,7 @@ class RideRequestKafkaFlowIntegrationTest {
         riderRepository.save(rider("rider-flow-2"));
         stringRedisTemplate.opsForGeo().add(VEHICLE_LOCATION, new Point(2.3522, 48.8566), "rider-flow-1");
         stringRedisTemplate.opsForGeo().add(VEHICLE_LOCATION, new Point(2.3610, 48.8560), "rider-flow-2");
+        stringRedisTemplate.opsForSet().add(AVAILABLE_DRIVERS, "rider-flow-1", "rider-flow-2");
 
         RideRequest rideRequest = RideRequest.builder()
                 .userIdentifier("user-flow")
