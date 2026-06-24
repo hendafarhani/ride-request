@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -27,6 +26,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -83,36 +83,26 @@ class NotificationServiceImplTest {
     void sendRabbitMqNotification_createsQueueBeforePublishingWhenMissing() {
         stubUserExchange();
         Rider rider = Rider.builder().identifier("missing-queue").build();
-        RideNotification notification = RideNotification.builder().status(StatusEnum.PENDING).build();
         when(queueChecker.doesQueueExist("queue.user.missing-queue")).thenReturn(false);
 
-        try (MockedStatic<RideMapper> mapper = mockStatic(RideMapper.class)) {
-            mapper.when(() -> RideMapper.mapToRideNotification(rider, rideRequest, StatusEnum.PENDING))
-                    .thenReturn(notification);
+        notificationService.sendRabbitMqNotification(List.of(rider), rideRequest);
 
-            notificationService.sendRabbitMqNotification(List.of(rider), rideRequest);
-        }
-
+        RideNotification expected = RideMapper.mapToRideNotification(rider, rideRequest, StatusEnum.PENDING);
         verify(rabbitMQUserService).createUserQueue("missing-queue");
-        verify(rabbitTemplate).convertAndSend("user-exchange", "missing-queue", notification);
+        verify(rabbitTemplate).convertAndSend("user-exchange", "missing-queue", expected);
     }
 
     @Test
     void sendRabbitMqNotification_skipsQueueCreationWhenAlreadyProvisioned() {
         stubUserExchange();
         Rider rider = Rider.builder().identifier("existing-queue").build();
-        RideNotification notification = RideNotification.builder().status(StatusEnum.PENDING).build();
         when(queueChecker.doesQueueExist("queue.user.existing-queue")).thenReturn(true);
 
-        try (MockedStatic<RideMapper> mapper = mockStatic(RideMapper.class)) {
-            mapper.when(() -> RideMapper.mapToRideNotification(rider, rideRequest, StatusEnum.PENDING))
-                    .thenReturn(notification);
+        notificationService.sendRabbitMqNotification(List.of(rider), rideRequest);
 
-            notificationService.sendRabbitMqNotification(List.of(rider), rideRequest);
-        }
-
+        RideNotification expected = RideMapper.mapToRideNotification(rider, rideRequest, StatusEnum.PENDING);
         verify(rabbitMQUserService, never()).createUserQueue(any());
-        verify(rabbitTemplate).convertAndSend("user-exchange", "existing-queue", notification);
+        verify(rabbitTemplate).convertAndSend("user-exchange", "existing-queue", expected);
     }
 
     @Test
@@ -126,18 +116,13 @@ class NotificationServiceImplTest {
     void notifyRideAccepted_notifiesRequesterWhenRideIsAccepted() {
         stubUserExchange();
         when(queueChecker.doesQueueExist("queue.user.requester-1")).thenReturn(false);
-        RideNotification acceptedNotification = RideNotification.builder().status(StatusEnum.ACCEPTED).build();
 
-        try (MockedStatic<RideMapper> mapper = mockStatic(RideMapper.class)) {
-            mapper.when(() -> RideMapper.mapToRideNotification("accepted-rider", rideRequest, StatusEnum.ACCEPTED))
-                    .thenReturn(acceptedNotification);
+        notificationService.notifyRideAccepted(rideRequest, "accepted-rider");
 
-            notificationService.notifyRideAccepted(rideRequest, "accepted-rider");
-        }
-
+        RideNotification expected = RideMapper.mapToRideNotification("accepted-rider", rideRequest, StatusEnum.ACCEPTED);
         verify(queueChecker).doesQueueExist("queue.user.requester-1");
         verify(rabbitMQUserService).createUserQueue("requester-1");
-        verify(rabbitTemplate).convertAndSend("user-exchange", "requester-1", acceptedNotification);
+        verify(rabbitTemplate).convertAndSend("user-exchange", "requester-1", expected);
     }
 
     @Test
@@ -151,18 +136,13 @@ class NotificationServiceImplTest {
     void notifyRideTimedOut_notifiesRequesterWithTimedOutStatus() {
         stubUserExchange();
         when(queueChecker.doesQueueExist("queue.user.requester-1")).thenReturn(false);
-        RideNotification timedOutNotification = RideNotification.builder().status(StatusEnum.TIMED_OUT).build();
 
-        try (MockedStatic<RideMapper> mapper = mockStatic(RideMapper.class)) {
-            mapper.when(() -> RideMapper.mapToRideNotification((String) null, rideRequest, StatusEnum.TIMED_OUT))
-                    .thenReturn(timedOutNotification);
+        notificationService.notifyRideTimedOut(rideRequest);
 
-            notificationService.notifyRideTimedOut(rideRequest);
-        }
-
+        RideNotification expected = RideMapper.mapToRideNotification((String) null, rideRequest, StatusEnum.TIMED_OUT);
         verify(queueChecker).doesQueueExist("queue.user.requester-1");
         verify(rabbitMQUserService).createUserQueue("requester-1");
-        verify(rabbitTemplate).convertAndSend("user-exchange", "requester-1", timedOutNotification);
+        verify(rabbitTemplate).convertAndSend("user-exchange", "requester-1", expected);
         verifyNoInteractions(offerRepository);
     }
 
@@ -170,8 +150,6 @@ class NotificationServiceImplTest {
     void notifyRideAccepted_notifiesOtherRidersExceptAcceptedAndDeduplicates() {
         stubUserExchange();
         when(queueChecker.doesQueueExist(anyString())).thenReturn(true);
-        RideNotification acceptedNotification = RideNotification.builder().status(StatusEnum.ACCEPTED).build();
-        RideNotification canceledNotification = RideNotification.builder().status(StatusEnum.CANCELED).build();
         when(offerRepository.findByRideRequestIdAndStatus(rideRequest.getId(), OfferStatus.CANCELED))
                 .thenReturn(List.of(
                         offer("rider-A"),
@@ -180,15 +158,12 @@ class NotificationServiceImplTest {
                         offer("rider-B")
                 ));
 
-        try (MockedStatic<RideMapper> mapper = mockStatic(RideMapper.class)) {
-            mapper.when(() -> RideMapper.mapToRideNotification("rider-accepted", rideRequest, StatusEnum.ACCEPTED))
-                    .thenReturn(acceptedNotification);
-            mapper.when(() -> RideMapper.mapToRideNotification("rider-accepted", rideRequest, StatusEnum.CANCELED))
-                    .thenReturn(canceledNotification);
+        notificationService.notifyRideAccepted(rideRequest, "rider-accepted");
 
-            notificationService.notifyRideAccepted(rideRequest, "rider-accepted");
-        }
-
+        RideNotification acceptedNotification =
+                RideMapper.mapToRideNotification("rider-accepted", rideRequest, StatusEnum.ACCEPTED);
+        RideNotification canceledNotification =
+                RideMapper.mapToRideNotification("rider-accepted", rideRequest, StatusEnum.CANCELED);
         verify(rabbitTemplate).convertAndSend("user-exchange", "requester-1", acceptedNotification);
         verify(rabbitTemplate).convertAndSend("user-exchange", "rider-A", canceledNotification);
         verify(rabbitTemplate).convertAndSend("user-exchange", "rider-B", canceledNotification);
