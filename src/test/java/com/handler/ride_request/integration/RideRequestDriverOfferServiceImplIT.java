@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @Transactional
-class RideRequestDriverOfferServiceImplIntegrationTest {
+class RideRequestDriverOfferServiceImplIT {
 
     @Autowired
     private RideRequestDriverOfferServiceImpl service;
