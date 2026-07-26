@@ -1,6 +1,6 @@
 package com.handler.ride_request.service.serviceimpl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.handler.ride_request.entity.EventOutboxEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.enums.OutboxEventStatus;

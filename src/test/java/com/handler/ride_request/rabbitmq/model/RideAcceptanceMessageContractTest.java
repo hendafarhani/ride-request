@@ -1,7 +1,8 @@
 package com.handler.ride_request.rabbitmq.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.handler.ride_request.enums.StatusEnum;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.geo.Point;
@@ -12,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RideAcceptanceMessageContractTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new JsonMapper();
 
     @Test
     void rideAcceptanceMessageSerializesWithExpectedFieldNames() throws Exception {

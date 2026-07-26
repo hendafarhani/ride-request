@@ -1,13 +1,13 @@
 package com.handler.ride_request.kafka.serialization;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.handler.ride_request.domain.Location;
 import com.handler.ride_request.domain.RideRequest;
 import org.apache.kafka.common.errors.SerializationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -55,9 +55,10 @@ class RideRequestJsonDeserializerTest {
     }
 
     @Test
-    void deserializeShouldWrapIOExceptionInSerializationException() throws Exception {
+    void deserializeShouldWrapJacksonExceptionInSerializationException() throws Exception {
         byte[] payload = "invalid-json".getBytes();
-        IOException cause = new IOException("boom");
+        JacksonException cause = new JacksonException("boom") {
+        };
         when(objectMapper.readValue(payload, RideRequest.class)).thenThrow(cause);
 
         SerializationException exception = assertThrows(

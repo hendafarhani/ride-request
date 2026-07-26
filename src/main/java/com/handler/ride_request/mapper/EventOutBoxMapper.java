@@ -1,7 +1,7 @@
 package com.handler.ride_request.mapper;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.handler.ride_request.entity.EventOutboxEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.enums.OutboxEventStatus;
@@ -76,7 +76,7 @@ public class EventOutBoxMapper {
 
         try {
             return objectMapper.writeValueAsString(payload);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new IllegalStateException("Unable to serialize outbox payload for ride request " + rideRequest.getIdentifier(), ex);
         }
     }

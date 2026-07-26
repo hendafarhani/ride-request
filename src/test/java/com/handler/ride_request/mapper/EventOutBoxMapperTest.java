@@ -1,9 +1,9 @@
 package com.handler.ride_request.mapper;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.handler.ride_request.entity.EventOutboxEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
@@ -26,7 +26,7 @@ class EventOutBoxMapperTest {
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        objectMapper = new JsonMapper();
         rideRequest = RideRequestEntity.builder()
                 .id(42L)
                 .identifier("ride-42")
@@ -83,10 +83,10 @@ class EventOutBoxMapperTest {
 
     @Test
     void mapToEventOutboxEntityShouldWrapPayloadSerializationFailure() {
-        ObjectMapper failingObjectMapper = new ObjectMapper() {
+        ObjectMapper failingObjectMapper = new JsonMapper() {
             @Override
-            public String writeValueAsString(Object value) throws JsonProcessingException {
-                throw new JsonProcessingException("boom") {
+            public String writeValueAsString(Object value) {
+                throw new JacksonException("boom") {
                 };
             }
         };
@@ -102,6 +102,6 @@ class EventOutBoxMapperTest {
         );
 
         assertEquals("Unable to serialize outbox payload for ride request ride-42", thrown.getMessage());
-        assertTrue(thrown.getCause() instanceof JsonProcessingException);
+        assertTrue(thrown.getCause() instanceof JacksonException);
     }
 }
