@@ -1,8 +1,8 @@
 package com.handler.ride_request.service.serviceimpl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.handler.ride_request.entity.EventOutboxEntity;
 import com.handler.ride_request.entity.RideRequestEntity;
 import com.handler.ride_request.entity.UserEntity;
@@ -38,7 +38,7 @@ class EventOutboxServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        objectMapper = new JsonMapper();
         service = new EventOutboxServiceImpl(eventOutboxRepository, objectMapper);
         rideRequest = RideRequestEntity.builder()
                 .id(42L)
