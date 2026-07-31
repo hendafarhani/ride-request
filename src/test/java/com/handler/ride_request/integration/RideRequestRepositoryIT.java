@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
-class RideRequestRepositoryIntegrationTest {
+class RideRequestRepositoryIT {
 
     @Container
     static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");

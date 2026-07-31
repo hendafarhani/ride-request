@@ -43,7 +43,7 @@ import static org.awaitility.Awaitility.await;
         "spring.jpa.hibernate.ddl-auto=create-drop"
 })
 @Testcontainers(disabledWithoutDocker = true)
-class RideAcceptanceRabbitMqIntegrationTest {
+class RideAcceptanceRabbitMqIT {
 
     @Container
     static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");

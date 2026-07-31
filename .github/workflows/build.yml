@@ -9,7 +9,7 @@ on:
 
 jobs:
   call-build:
-    uses: hendafarhani/microGo/.github/workflows/maven-build.yml@24faf462a6eb2f96940a6f05c53b9061e9623832
+    uses: hendafarhani/microGo/.github/workflows/maven-build.yml@247bd1598dea8fc8b2b3dd1d9d474607fd9d5bd2
     with:
       java_version: "21"
       maven_goal: "verify"
