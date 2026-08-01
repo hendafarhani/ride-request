@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "eureka.client.enabled=false"
 })
 @Testcontainers(disabledWithoutDocker = true)
-class RidersSearchRedisIntegrationTest {
+class RidersSearchRedisIT {
 
     @Container
     static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))

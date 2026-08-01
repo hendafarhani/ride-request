@@ -58,7 +58,7 @@ import static org.awaitility.Awaitility.await;
         "spring.jpa.hibernate.ddl-auto=create-drop"
 })
 @Testcontainers(disabledWithoutDocker = true)
-class RideRequestKafkaFlowIntegrationTest {
+class RideRequestKafkaFlowIT {
 
     // Dispatch matching reads positions from vehicle_location and intersects with the
     // simulation-owned available_drivers SET, so seed both.
