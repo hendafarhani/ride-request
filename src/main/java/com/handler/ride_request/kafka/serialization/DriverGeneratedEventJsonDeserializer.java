@@ -1,15 +1,15 @@
 package com.handler.ride_request.kafka.serialization;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.handler.ride_request.kafka.model.DriverGeneratedEvent;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Deserializer;
 
-import java.io.IOException;
-
 public class DriverGeneratedEventJsonDeserializer implements Deserializer<DriverGeneratedEvent> {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new JsonMapper();
 
     @Override
     public DriverGeneratedEvent deserialize(String topic, byte[] data) {
@@ -18,7 +18,7 @@ public class DriverGeneratedEventJsonDeserializer implements Deserializer<Driver
         }
         try {
             return objectMapper.readValue(data, DriverGeneratedEvent.class);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new SerializationException(
                     "Failed to deserialize DriverGeneratedEvent from topic " + topic,
                     exception);

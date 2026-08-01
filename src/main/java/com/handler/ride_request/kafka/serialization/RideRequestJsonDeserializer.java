@@ -1,11 +1,12 @@
 package com.handler.ride_request.kafka.serialization;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.handler.ride_request.domain.RideRequest;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Deserializer;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -16,7 +17,7 @@ public class RideRequestJsonDeserializer implements Deserializer<RideRequest> {
     private final ObjectMapper objectMapper;
 
     public RideRequestJsonDeserializer() {
-        this(new ObjectMapper());
+        this(new JsonMapper());
     }
 
     // Visible for testing
@@ -36,7 +37,7 @@ public class RideRequestJsonDeserializer implements Deserializer<RideRequest> {
         }
         try {
             return objectMapper.readValue(data, RideRequest.class);
-        } catch (IOException ex) {
+        } catch (JacksonException ex) {
             throw new SerializationException("Failed to deserialize RideRequest", ex);
         }
     }
