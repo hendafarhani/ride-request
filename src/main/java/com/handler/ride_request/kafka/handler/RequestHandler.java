@@ -16,7 +16,7 @@ public class RequestHandler {
 
     @KafkaListener(
             id = "${kafka.listeners.ride-request.id}",
-            topics = "${kafka.topics.ride-requests}",
+            topics = "${microgo.topics.ride-requests}",
             groupId = "${kafka.consumers.ride-request.group-id}",
             containerFactory = "kafkaListenerContainerFactory"
     )

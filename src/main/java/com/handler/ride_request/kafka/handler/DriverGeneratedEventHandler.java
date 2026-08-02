@@ -16,7 +16,7 @@ public class DriverGeneratedEventHandler {
 
     @KafkaListener(
             id = "${kafka.listeners.driver-generated.id}",
-            topics = "${kafka.topics.driver-generated}",
+            topics = "${microgo.topics.driver-generated}",
             groupId = "${kafka.consumers.driver-generated.group-id}",
             containerFactory = "driverGeneratedListenerFactory"
     )
