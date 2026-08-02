@@ -106,10 +106,10 @@ class RideRequestKafkaFlowIT {
     @Autowired
     private EventOutboxRepository eventOutboxRepository;
 
-    @Value("${kafka.topics.ride-requests}")
+    @Value("${microgo.topics.ride-requests}")
     private String rideRequestsTopic;
 
-    @Value("${kafka.topics.driver-generated}")
+    @Value("${microgo.topics.driver-generated}")
     private String driverGeneratedTopic;
 
     @DynamicPropertySource
